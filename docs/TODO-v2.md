@@ -15,8 +15,8 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
 ## 1. Project Setup
 
 ### 1.1 Initialize Project
-- [ ] Create `package.json` with `npm init -y`
-- [ ] Configure `tsconfig.json`:
+- [x] Create `package.json` with `npm init -y`
+- [x] Configure `tsconfig.json`:
   ```json
   {
     "compilerOptions": {
@@ -30,7 +30,7 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
     }
   }
   ```
-- [ ] Create `.gitignore`:
+- [x] Create `.gitignore`:
   ```
   node_modules/
   dist/
@@ -38,29 +38,29 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
   .env
   *.log
   ```
-- [ ] Initialize git repository
+- [x] Initialize git repository
 
 ### 1.2 Install Dependencies
 
 **Production:**
-- [ ] `@google/generative-ai` - Gemini 3 Flash + Nano Banana Pro
-- [ ] `axios` - HTTP client for ScrapeCreators
-- [ ] `chalk` - Terminal styling
-- [ ] `commander` - CLI framework
-- [ ] `dotenv` - Environment variables
-- [ ] `openai` - GPT-5.2 SDK
-- [ ] `zod` - Schema validation (NEW)
-- [ ] `uuid` - Stable ID generation (NEW)
+- [x] `@google/generative-ai` - Gemini 3 Flash + Nano Banana Pro
+- [x] `axios` - HTTP client for ScrapeCreators
+- [x] `chalk` - Terminal styling
+- [x] `commander` - CLI framework
+- [x] `dotenv` - Environment variables
+- [x] `openai` - GPT-5.2 SDK
+- [x] `zod` - Schema validation (NEW)
+- [x] `uuid` - Stable ID generation (NEW)
 
 **Development:**
-- [ ] `@types/node`
-- [ ] `@types/uuid`
-- [ ] `typescript`
-- [ ] `tsx` - TypeScript execution
-- [ ] `vitest` - Testing framework (NEW)
+- [x] `@types/node`
+- [x] `@types/uuid`
+- [x] `typescript`
+- [x] `tsx` - TypeScript execution
+- [x] `vitest` - Testing framework (NEW)
 
 ### 1.3 Environment Configuration
-- [ ] Create `.env.example`:
+- [x] Create `.env.example`:
   ```env
   # Required
   PERPLEXITY_API_KEY=
@@ -70,10 +70,10 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
   # Optional (for social sources)
   SCRAPECREATORS_API_KEY=
   ```
-- [ ] Document which keys are required vs optional
+- [x] Document which keys are required vs optional
 
 ### 1.4 Directory Structure
-- [ ] Create full directory structure:
+- [x] Create full directory structure:
   ```
   src/
   ├── index.ts
@@ -122,25 +122,25 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
 ### 2.1 Create Zod Schemas
 
 **File: `src/schemas/rawItem.ts`**
-- [ ] Define `RawItemSchema`:
-  - [ ] `id: z.string().uuid()`
-  - [ ] `schemaVersion: z.literal('1.0.0')`
-  - [ ] `source: z.enum(['web', 'linkedin', 'x'])`
-  - [ ] `sourceUrl: z.string().url()` (required!)
-  - [ ] `retrievedAt: z.string().datetime()`
-  - [ ] `content: z.string().min(1)`
-  - [ ] `contentHash: z.string()`
-  - [ ] `title: z.string().optional()`
-  - [ ] `author: z.string().optional()`
-  - [ ] `authorHandle: z.string().optional()`
-  - [ ] `authorUrl: z.string().url().optional()`
-  - [ ] `publishedAt: z.string().datetime().optional()`
-  - [ ] `engagement` object with platform-specific fields
-  - [ ] `citations: z.array(z.string().url()).optional()`
-- [ ] Export type: `type RawItem = z.infer<typeof RawItemSchema>`
+- [x] Define `RawItemSchema`:
+  - [x] `id: z.string().uuid()`
+  - [x] `schemaVersion: z.literal('1.0.0')`
+  - [x] `source: z.enum(['web', 'linkedin', 'x'])`
+  - [x] `sourceUrl: z.string().url()` (required!)
+  - [x] `retrievedAt: z.string().datetime()`
+  - [x] `content: z.string().min(1)`
+  - [x] `contentHash: z.string()`
+  - [x] `title: z.string().optional()`
+  - [x] `author: z.string().optional()`
+  - [x] `authorHandle: z.string().optional()`
+  - [x] `authorUrl: z.string().url().optional()`
+  - [x] `publishedAt: z.string().datetime().optional()`
+  - [x] `engagement` object with platform-specific fields
+  - [x] `citations: z.array(z.string().url()).optional()`
+- [x] Export type: `type RawItem = z.infer<typeof RawItemSchema>`
 
 **File: `src/schemas/validatedItem.ts`**
-- [ ] Define `VerificationLevelSchema`:
+- [x] Define `VerificationLevelSchema`:
   ```typescript
   z.enum([
     'UNVERIFIED',
@@ -149,57 +149,57 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
     'PRIMARY_SOURCE'
   ])
   ```
-- [ ] Define `ValidationSchema`:
-  - [ ] `level: VerificationLevelSchema`
-  - [ ] `confidence: z.number().min(0).max(1)`
-  - [ ] `checkedAt: z.string().datetime()`
-  - [ ] `sourcesFound: z.array(z.string().url())`
-  - [ ] `notes: z.array(z.string())` (brief bullets, not CoT)
-  - [ ] `quotesVerified: z.array(...)` with quote, verified, sourceUrl
-- [ ] Define `ValidatedItemSchema` extending RawItem
+- [x] Define `ValidationSchema`:
+  - [x] `level: VerificationLevelSchema`
+  - [x] `confidence: z.number().min(0).max(1)`
+  - [x] `checkedAt: z.string().datetime()`
+  - [x] `sourcesFound: z.array(z.string().url())`
+  - [x] `notes: z.array(z.string())` (brief bullets, not CoT)
+  - [x] `quotesVerified: z.array(...)` with quote, verified, sourceUrl
+- [x] Define `ValidatedItemSchema` extending RawItem
 
 **File: `src/schemas/scoredItem.ts`**
-- [ ] Define `ScoresSchema`:
-  - [ ] `relevance: z.number().min(0).max(100)`
-  - [ ] `authenticity: z.number().min(0).max(100)`
-  - [ ] `recency: z.number().min(0).max(100)`
-  - [ ] `engagementPotential: z.number().min(0).max(100)`
-  - [ ] `overall: z.number().min(0).max(100)`
-- [ ] Define `ScoredItemSchema` extending ValidatedItem
+- [x] Define `ScoresSchema`:
+  - [x] `relevance: z.number().min(0).max(100)`
+  - [x] `authenticity: z.number().min(0).max(100)`
+  - [x] `recency: z.number().min(0).max(100)`
+  - [x] `engagementPotential: z.number().min(0).max(100)`
+  - [x] `overall: z.number().min(0).max(100)`
+- [x] Define `ScoredItemSchema` extending ValidatedItem
 
 **File: `src/schemas/synthesisResult.ts`**
-- [ ] Define `KeyQuoteSchema`:
-  - [ ] `quote: z.string()`
-  - [ ] `author: z.string()`
-  - [ ] `sourceUrl: z.string().url()` (required!)
-  - [ ] `verificationLevel: VerificationLevelSchema`
-- [ ] Define `InfographicBriefSchema`
-- [ ] Define `FactCheckSummarySchema`:
-  - [ ] `totalSourcesUsed: z.number()`
-  - [ ] `verifiedQuotes: z.number()`
-  - [ ] `unverifiedClaims: z.number()`
-  - [ ] `primarySources: z.number()`
-  - [ ] `warnings: z.array(z.string())`
-- [ ] Define `SynthesisResultSchema`
+- [x] Define `KeyQuoteSchema`:
+  - [x] `quote: z.string()`
+  - [x] `author: z.string()`
+  - [x] `sourceUrl: z.string().url()` (required!)
+  - [x] `verificationLevel: VerificationLevelSchema`
+- [x] Define `InfographicBriefSchema`
+- [x] Define `FactCheckSummarySchema`:
+  - [x] `totalSourcesUsed: z.number()`
+  - [x] `verifiedQuotes: z.number()`
+  - [x] `unverifiedClaims: z.number()`
+  - [x] `primarySources: z.number()`
+  - [x] `warnings: z.array(z.string())`
+- [x] Define `SynthesisResultSchema`
 
 **File: `src/schemas/sourceReference.ts`**
-- [ ] Define `SourceReferenceSchema`:
-  - [ ] `id: z.string()` (references RawItem.id)
-  - [ ] `url: z.string().url()`
-  - [ ] `title: z.string()`
-  - [ ] `verificationLevel: VerificationLevelSchema`
-  - [ ] `usedInPost: z.boolean()`
+- [x] Define `SourceReferenceSchema`:
+  - [x] `id: z.string()` (references RawItem.id)
+  - [x] `url: z.string().url()`
+  - [x] `title: z.string()`
+  - [x] `verificationLevel: VerificationLevelSchema`
+  - [x] `usedInPost: z.boolean()`
 
 ### 2.2 Schema Validation Helpers
 
 **File: `src/schemas/index.ts`**
-- [ ] Export all schemas
-- [ ] Create `validateOrThrow<T>(schema, data)` helper
-- [ ] Create `tryValidate<T>(schema, data)` helper (returns Result type)
-- [ ] Create `parseModelResponse(text)` helper:
-  - [ ] Strip markdown code fences
-  - [ ] Handle trailing text after JSON
-  - [ ] Return parsed object or throw
+- [x] Export all schemas
+- [x] Create `validateOrThrow<T>(schema, data)` helper
+- [x] Create `tryValidate<T>(schema, data)` helper (returns Result type)
+- [x] Create `parseModelResponse(text)` helper:
+  - [x] Strip markdown code fences
+  - [x] Handle trailing text after JSON
+  - [x] Return parsed object or throw
 
 ### 2.3 Retry with Fix-JSON Prompt
 - [ ] Create `retryWithFixPrompt(model, originalPrompt, badResponse)`:
@@ -212,8 +212,8 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
 ## 3. Type Definitions
 
 **File: `src/types/index.ts`**
-- [ ] Export all inferred Zod types
-- [ ] Define `PipelineConfig` interface:
+- [x] Export all inferred Zod types
+- [x] Define `PipelineConfig` interface:
   ```typescript
   interface PipelineConfig {
     sources: ('web' | 'linkedin' | 'x')[];
@@ -233,8 +233,8 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
     dryRun: boolean;
   }
   ```
-- [ ] Define `PipelineResult` interface
-- [ ] Define `StageResult<T>` interface with success/failure
+- [x] Define `PipelineResult` interface
+- [x] Define `StageResult<T>` interface with success/failure
 
 ---
 
