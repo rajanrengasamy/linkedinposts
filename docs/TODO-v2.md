@@ -333,43 +333,60 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
 ### 6.1 Normalization
 
 **File: `src/processing/normalize.ts`**
-- [ ] `normalizeContent(content: string)`:
-  - [ ] Convert to lowercase
-  - [ ] Remove URLs
-  - [ ] Remove emoji
-  - [ ] Remove punctuation
-  - [ ] Collapse whitespace
-  - [ ] Trim
-- [ ] `generateContentHash(content: string)`:
-  - [ ] Call normalizeContent
-  - [ ] SHA-256 hash
-  - [ ] Return first 16 characters
-- [ ] `normalizeTimestamp(date: string | Date)`:
-  - [ ] Convert to ISO 8601
-  - [ ] Handle various input formats
-- [ ] `normalizeUrl(url: string)`:
-  - [ ] Remove tracking parameters
-  - [ ] Ensure https
-  - [ ] Normalize trailing slashes
+- [x] `normalizeContent(content: string)`:
+  - [x] Convert to lowercase
+  - [x] Remove URLs
+  - [x] Remove emoji
+  - [x] Remove punctuation
+  - [x] Collapse whitespace
+  - [x] Trim
+- [x] `generateContentHash(content: string)`:
+  - [x] Call normalizeContent
+  - [x] SHA-256 hash
+  - [x] Return first 16 characters
+- [x] `normalizeTimestamp(date: string | Date)`:
+  - [x] Convert to ISO 8601
+  - [x] Handle various input formats
+- [x] **QA Fix**: Disambiguate YYYYMMDD from Unix timestamps by string length (Issue #3 from Section6-QA)
+- [x] `normalizeUrl(url: string)`:
+  - [x] Remove tracking parameters
+  - [x] Ensure https
+  - [x] Normalize trailing slashes
 
 ### 6.2 Deduplication
 
 **File: `src/processing/dedup.ts`**
-- [ ] `deduplicateByHash(items: RawItem[])`:
-  - [ ] Group by contentHash
-  - [ ] Keep first occurrence (by retrievedAt)
-  - [ ] Return deduplicated array
-- [ ] `jaccardSimilarity(a: string, b: string)`:
-  - [ ] Tokenize normalized strings
-  - [ ] Calculate Jaccard index
-- [ ] `deduplicateBySimilarity(items: RawItem[], threshold = 0.85)`:
-  - [ ] For each pair, check similarity
-  - [ ] Mark duplicates for removal
-  - [ ] Return deduplicated array
-- [ ] `deduplicate(items: RawItem[])`:
-  - [ ] First pass: hash dedup
-  - [ ] Second pass: similarity dedup (if still > threshold)
-  - [ ] Log duplicates removed
+- [x] `deduplicateByHash(items: RawItem[])`:
+  - [x] Group by contentHash
+  - [x] Keep first occurrence (by retrievedAt)
+  - [x] Return deduplicated array
+- [x] `jaccardSimilarity(a: string, b: string)`:
+  - [x] Tokenize normalized strings
+  - [x] Calculate Jaccard index
+- [x] `deduplicateBySimilarity(items: RawItem[], threshold = 0.85)`:
+  - [x] For each pair, check similarity
+  - [x] Mark duplicates for removal
+  - [x] Return deduplicated array
+- [x] `deduplicate(items: RawItem[])`:
+  - [x] First pass: hash dedup
+  - [x] Second pass: similarity dedup (if still > threshold)
+  - [x] Log duplicates removed
+
+### 6.3 Timestamp Parsing Hardening (QA Follow-up)
+
+**File: `src/processing/normalize.ts`**
+- [x] **QA Fix**: Strict YYYYMMDD calendar validation (reject rollover dates like Feb 30)
+  - [x] Parse 8-digit numeric strings into year/month/day integers
+  - [x] Reject months outside 01-12
+  - [x] Reject days outside 01-31
+  - [x] Verify constructed date matches input components (catches JS Date rollover)
+- [x] **QA Fix**: Reject ambiguous numeric timestamp lengths (non 8/10/13 digits)
+  - [x] Accept only: 8 (YYYYMMDD), 10 (Unix seconds), 13 (Unix milliseconds)
+  - [x] Throw a clear error for unsupported numeric lengths to prevent silent misparsing
+- [x] **QA Fix**: Add unit tests in `tests/unit/normalize.test.ts`
+  - [x] `normalizeTimestamp('20240230')` throws (no rollover)
+  - [x] `normalizeTimestamp('946684800000')` (12 digits) throws (unsupported numeric length)
+  - [x] Ensure 10-digit seconds and 13-digit milliseconds still parse correctly
 
 ---
 
@@ -804,17 +821,17 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
 
 **Directory: `tests/unit/`**
 
-- [ ] `normalize.test.ts`:
-  - [ ] Test normalizeContent with various inputs
-  - [ ] Test contentHash stability
-  - [ ] Test URL normalization
-  - [ ] Test timestamp normalization
+- [x] `normalize.test.ts`:
+  - [x] Test normalizeContent with various inputs
+  - [x] Test contentHash stability
+  - [x] Test URL normalization
+  - [x] Test timestamp normalization
 
-- [ ] `dedup.test.ts`:
-  - [ ] Test hash-based deduplication
-  - [ ] Test Jaccard similarity calculation
-  - [ ] Test similarity-based deduplication
-  - [ ] Test edge cases (empty content, identical content)
+- [x] `dedup.test.ts`:
+  - [x] Test hash-based deduplication
+  - [x] Test Jaccard similarity calculation
+  - [x] Test similarity-based deduplication
+  - [x] Test edge cases (empty content, identical content)
 
 - [ ] `schemas.test.ts`:
   - [ ] Test RawItem validation

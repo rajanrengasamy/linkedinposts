@@ -267,3 +267,122 @@ All QA issues from Sections 4-5 are now resolved. The utility foundation is robu
 3. Proceed to Section 8 (Validation Engine) after collectors are working
 
 ---
+
+## Session: 2025-12-28 18:30 AEST
+
+### Summary
+Completed Section 6 (Content Processing) by spawning 5 parallel senior-developer agents, then reviewed and fixed 3 QA issues identified in `docs/Section6-QA-issues.md`. All implementations are complete with 167 passing unit tests.
+
+### Work Completed
+- **Section 6.1 (normalize.ts)**: Implemented `normalizeContent`, `generateContentHash`, `normalizeTimestamp`, `normalizeUrl`
+- **Section 6.2 (dedup.ts)**: Implemented `jaccardSimilarity`, `deduplicateByHash`, `deduplicateBySimilarity`, `deduplicate`
+- **Unit Tests**: Created `normalize.test.ts` (122 tests) and `dedup.test.ts` (45 tests)
+- **Barrel Export**: Created `src/processing/index.ts`
+- **QA Review**: Validated 3 issues in Section6-QA-issues.md as legitimate
+- **QA Fixes**: Fixed all 3 issues with additional test coverage
+
+### Files Modified/Created
+| File | Action |
+|:-----|:-------|
+| `src/processing/normalize.ts` | Implemented (4 functions, QA fixes applied) |
+| `src/processing/dedup.ts` | Implemented (4 functions + interface, QA fix applied) |
+| `src/processing/index.ts` | Created (barrel export) |
+| `tests/unit/normalize.test.ts` | Created (122 tests) |
+| `tests/unit/dedup.test.ts` | Created (45 tests) |
+| `docs/TODO-v2.md` | Updated Section 6 checkboxes |
+
+### Issues & Resolutions
+| Issue | Resolution | Status |
+|:------|:-----------|:-------|
+| QA #1: Hash dedup reorders items | Changed result-building to filter by kept IDs | ✅ Resolved |
+| QA #2: `normalizeUrl` missing trim | Added `url.trim()` before parsing | ✅ Resolved |
+| QA #3: YYYYMMDD misparsed as Unix | Added length-based format detection (8=YYYYMMDD, 10=seconds, 13=ms) | ✅ Resolved |
+
+### Key Decisions
+- **Parallel Agent Strategy**: Used 5 agents (2 implementation + 2 test + 1 integration) for efficient Section 6 completion
+- **QA-First Approach**: Reviewed QA issues before fixing to ensure validity, then spawned 3 targeted fix agents
+- **Stable Dedup Ordering**: `deduplicateByHash` now preserves original positions of kept items (filter pattern vs push pattern)
+- **Length-Based Timestamp Detection**: 8 digits = YYYYMMDD, 10 = Unix seconds, 13 = Unix milliseconds
+
+### Learnings
+- Parallel agent spawning is effective for independent tasks (implementation + tests can run simultaneously)
+- QA validation before execution prevents wasted work on invalid issues
+- The `filter` pattern for dedup is more correct than `push` for preserving item positions
+- URL constructor does NOT trim whitespace - explicit trim required
+
+### Open Items / Blockers
+- [x] Section 6: Content Processing - **COMPLETE**
+- [ ] Section 7: Data Collectors (web, linkedin, twitter, orchestrator)
+- [ ] Sections 8-15: Remaining pipeline stages
+
+### Context for Next Session
+Section 6 is fully complete with all QA issues resolved:
+- `normalize.ts`: 4 functions with robust edge case handling
+- `dedup.ts`: 4 functions with stable ordering guarantees
+- 167 total unit tests passing
+- TypeScript compiles with 0 errors
+
+**Recommended next steps:**
+1. Section 7: Implement `web.ts` (Perplexity collector - required source)
+2. Section 7: Implement `linkedin.ts` and `twitter.ts` (optional, gated behind flags)
+3. Section 7: Implement `index.ts` (collector orchestrator with parallel execution)
+4. Then proceed to Section 8 (Validation Engine)
+
+---
+
+## Session: 2025-12-29 00:30 AEST
+
+### Summary
+Completed Section 6.3 (Timestamp Parsing Hardening) by spawning 3 parallel senior-developer agents. Added strict YYYYMMDD calendar validation to reject rollover dates (Feb 30 → Mar 1), reject ambiguous numeric timestamp lengths (only 8/10/13 digits accepted), and comprehensive unit tests. All 192 tests now pass.
+
+### Work Completed
+- **Implementation**: Modified `normalizeTimestamp` in normalize.ts with strict validation
+- **YYYYMMDD validation**: Parse to integers, validate month 1-12, day 1-31, detect JS Date rollover
+- **Ambiguous lengths**: Throw clear error for non 8/10/13 digit numeric strings
+- **15 calendar validation tests**: Feb 30, Feb 31, Apr 31, leap year Feb 29, month 00, day 00, etc.
+- **11 length validation tests**: 7, 9, 11, 12, 14, 20 digit strings throw; 8/10/13 work
+- **Fixed existing test**: Changed `'0'` (1 digit) to `'0000000001'` (10 digits)
+
+### Files Modified/Created
+| File | Action |
+|:-----|:-------|
+| `src/processing/normalize.ts` | Added strict YYYYMMDD + length validation (lines 86-124) |
+| `tests/unit/normalize.test.ts` | Added 26 new tests (calendar + length validation) |
+| `docs/TODO-v2.md` | Marked Section 6.3 complete |
+
+### Issues & Resolutions
+| Issue | Resolution | Status |
+|:------|:-----------|:-------|
+| Feb 30 silently rolls to Mar 1 | Verify getUTCFullYear/Month/Date match input after Date construction | ✅ Resolved |
+| Ambiguous lengths guessed | Throw descriptive error for non 8/10/13 digit strings | ✅ Resolved |
+| Existing test used `'0'` (1 digit) | Changed to `'0000000001'` (valid 10-digit epoch+1sec) | ✅ Resolved |
+
+### Key Decisions
+- **Parallel Agent Strategy**: 3 agents (1 implementation + 2 test suites) for non-overlapping work
+- **Rollover Detection**: Check parsed date components match input after Date construction
+- **Error Messages**: Descriptive errors explain valid formats (8 YYYYMMDD, 10 Unix sec, 13 Unix ms)
+
+### Learnings
+- JS Date silently rolls invalid dates (Feb 30 → Mar 1) - must verify parsed components match input
+- Parallel agents work well when tasks are clearly scoped and non-overlapping
+- Existing test suites may break when adding stricter validation - review and fix affected tests
+
+### Open Items / Blockers
+- [x] Section 6.3: Timestamp Parsing Hardening - **COMPLETE**
+- [ ] Section 7: Data Collectors (web, linkedin, twitter, orchestrator)
+- [ ] Sections 8-15: Remaining pipeline stages
+
+### Context for Next Session
+Section 6 is now fully complete including all QA hardening:
+- `normalize.ts`: Strict timestamp validation with clear error messages
+- `dedup.ts`: Stable ordering with hash + Jaccard similarity
+- 192 total unit tests passing (147 normalize + 45 dedup)
+- TypeScript compiles with 0 errors
+
+**Recommended next steps:**
+1. Section 7.1: Implement `web.ts` (Perplexity collector - required, FATAL if fails)
+2. Section 7.2-7.3: Implement `linkedin.ts` and `twitter.ts` (optional, gated)
+3. Section 7.4: Implement collector orchestrator with parallel execution + dedup
+4. Then proceed to Section 8 (Validation Engine)
+
+---
