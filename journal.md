@@ -131,3 +131,139 @@ Sections 1-3 are complete. The schema foundation is solid with:
 The codebase is ready for core implementation work.
 
 ---
+
+## Session: 2025-12-27 14:30 AEST
+
+### Summary
+Addressed QA findings from Sections 2-3 (6 schema/type issues), then fully implemented Sections 4 (Configuration) and 5 (Utility Functions). The project now has robust config loading, secrets sanitization, file writing, retry logic, and cost estimation utilities.
+
+### Work Completed
+- **QA Fixes (6 issues)**: All findings from `docs/Section2n3-QA-issues.md` resolved
+- **Section 4 (config.ts)**: Environment loading, API key validation, config building from CLI options
+- **Section 5.1 (logger.ts)**: All log functions with secrets sanitization
+- **Section 5.2 (fileWriter.ts)**: JSON/Markdown/PNG writing with provenance support
+- **Section 5.3 (retry.ts)**: Exponential backoff with rate limit detection
+- **Section 5.4 (cost.ts)**: Pre-run estimation and post-run cost calculation
+
+### Files Modified/Created
+| File | Action |
+|:-----|:-------|
+| `src/schemas/index.ts` | Added `retryWithFixPrompt()` helper (Section 2.3) |
+| `src/schemas/validatedItem.ts` | Added refinements for sourceUrl + sourcesFound validation |
+| `src/schemas/rawItem.ts` | Strengthened contentHash regex (16 hex chars) |
+| `src/types/index.ts` | Fixed `twitterCount→xCount`, `Partial→Full` PipelineConfig |
+| `src/config.ts` | Full implementation (env loading, API key validation, config building) |
+| `src/utils/logger.ts` | Full implementation (sanitize, logStage, logProgress, etc.) |
+| `src/utils/fileWriter.ts` | Full implementation (ensureOutputDir, writeJSON, createOutputWriter) |
+| `src/utils/retry.ts` | Full implementation (withRetry, rate limit detection, backoff) |
+| `src/utils/cost.ts` | Full implementation (estimateCost, calculateActualCost, CostTracker) |
+| `docs/TODO-v2.md` | Marked Sections 2.3, 4, 5.1-5.4 as complete |
+
+### Issues & Resolutions
+| Issue | Resolution | Status |
+|:------|:-----------|:-------|
+| `retryWithFixPrompt` missing (QA #1) | Implemented with ModelCallFn type | ✅ Resolved |
+| Verified quotes lacked sourceUrl requirement (QA #2) | Added `.refine()` to QuoteVerifiedSchema | ✅ Resolved |
+| contentHash too weak (QA #3) | Enforced `/^[a-f0-9]{16}$/` regex | ✅ Resolved |
+| Empty sources for confirmed levels (QA #4) | Added MIN_SOURCES_FOR_LEVEL refinement | ✅ Resolved |
+| `twitterCount` vs `xCount` mismatch (QA #5) | Renamed to `xCount` | ✅ Resolved |
+| `Partial<PipelineConfig>` in status (QA #6) | Changed to full `PipelineConfig` | ✅ Resolved |
+| Zod 4 `.refine()` dynamic message syntax | Refactored to use separate validation function | ✅ Resolved |
+| TypeScript casting Error to Record | Added intermediate `unknown` cast | ✅ Resolved |
+
+### Key Decisions
+- **Config Re-exports**: config.ts re-exports QUALITY_PROFILES, API_CONCURRENCY_LIMITS from types to avoid duplication
+- **Verbose Mode**: Global flag in logger.ts, set via `setVerbose()` before pipeline runs
+- **CostTracker Class**: Accumulates token usage across pipeline stages for accurate post-run costing
+- **OutputWriter Pattern**: Factory function `createOutputWriter(basePath)` for convenient file output
+
+### Learnings
+- Zod 4 refinement with dynamic error messages requires separate validation function (not inline)
+- TypeScript strict mode requires `as unknown as Record<string, unknown>` for Error→Record casting
+- `formatSourcesMarkdown()` expects full SourcesFile object, not just array
+
+### Open Items / Blockers
+- [ ] Section 6: Content Processing (normalize.ts, dedup.ts)
+- [ ] Section 7: Data Collectors (web, linkedin, twitter, orchestrator)
+- [ ] Sections 8-15: Remaining pipeline stages
+
+### Context for Next Session
+Sections 1-5 are fully complete. Foundation is solid:
+- All schemas with validation rules and provenance enforcement
+- Config loading with API key validation and fail-fast behavior
+- Logger with secrets sanitization (keys never logged)
+- File writer with timestamped output directories
+- Retry logic with exponential backoff and rate limit handling
+- Cost estimation for pre/post-run analysis
+
+**TypeScript compiles with 0 errors.**
+
+**Recommended next steps:**
+1. Section 6: Implement normalize.ts (content normalization, hash generation) and dedup.ts (hash + Jaccard similarity)
+2. Section 7: Implement collectors (web.ts using Perplexity, orchestrator.ts)
+3. Then proceed to validation/scoring engines
+
+---
+
+## Session: 2025-12-27 16:00 AEST
+
+### Summary
+Resolved all 5 QA findings from `docs/Section4n5-QA-issues.md` covering Sections 4 (Configuration) and 5 (Utility Functions). Added stage timeout enforcement utilities, fixed divide-by-zero edge case in logger, centralized schema version constant, and created proper Zod validation for pipeline status output.
+
+### Work Completed
+- **Issue #1**: Implemented `withTimeout()`, `withTimeoutResult()`, `withRetryAndTimeout()` utilities for stage timeout enforcement
+- **Issue #2**: Fixed `logProgress()` divide-by-zero crash when `total=0`
+- **Issue #3**: Replaced hardcoded `'1.0.0'` literals with `SCHEMA_VERSION` constant in fileWriter.ts
+- **Issue #4**: Created `PipelineStatusSchema` and `PipelineConfigSchema` for pipeline_status.json validation
+- **Issue #5**: Already resolved in previous session (`xCount` naming)
+
+### Files Modified/Created
+| File | Action |
+|:-----|:-------|
+| `src/schemas/pipelineStatus.ts` | **Created** - New Zod schemas for PipelineConfig and PipelineStatus |
+| `src/schemas/index.ts` | Added exports for new pipelineStatus schemas |
+| `src/utils/retry.ts` | Added `TimeoutError` class, `withTimeout()`, `withTimeoutResult()`, `withRetryAndTimeout()` |
+| `src/utils/logger.ts` | Fixed `logProgress()` with guard for `total <= 0` and percent clamping |
+| `src/utils/fileWriter.ts` | Import `SCHEMA_VERSION`, use `PipelineStatusSchema` for validation |
+| `docs/TODO-v2.md` | Documented all QA fixes with checkboxes |
+
+### Issues & Resolutions
+| Issue | Resolution | Status |
+|:------|:-----------|:-------|
+| Stage timeouts not enforced (Issue #1) | Added `withTimeout()` family of functions with `TimeoutError` class | ✅ Resolved |
+| `logProgress` divide-by-zero (Issue #2) | Added guard for `total <= 0`, clamp percent to 0-100 | ✅ Resolved |
+| Hardcoded schema version (Issue #3) | Imported `SCHEMA_VERSION` from schemas, replaced literals | ✅ Resolved |
+| Pipeline status lacks validation (Issue #4) | Created `PipelineStatusSchema`, `PipelineConfigSchema` in new file | ✅ Resolved |
+| `twitterCount` vs `xCount` (Issue #5) | Already resolved in previous session | ✅ Resolved |
+
+### Key Decisions
+- **Timeout architecture**: `withTimeout()` doesn't abort underlying operations—it only stops waiting. True cancellation would require AbortController support in the wrapped functions.
+- **Result type pattern**: Provided both throwing (`withTimeout`) and result-returning (`withTimeoutResult`) variants for flexibility
+- **Combined utility**: `withRetryAndTimeout()` allows per-attempt timeout with automatic retry on timeout errors
+- **Schema duplication**: Created Zod versions of PipelineConfig/PipelineStatus types to enable runtime validation while keeping TypeScript interfaces for type-checking
+
+### Learnings
+- TypeScript interfaces and Zod schemas serve complementary purposes: interfaces for compile-time checking, schemas for runtime validation
+- When fixing divide-by-zero, also consider edge cases like `current > total` (clamped to 100%)
+- `.repeat(Infinity)` throws `RangeError`, not returning empty string—always guard division operations in display logic
+
+### Open Items / Blockers
+- [ ] Section 6: Content Processing (normalize.ts, dedup.ts)
+- [ ] Section 7: Data Collectors (web, linkedin, twitter, orchestrator)
+- [ ] Sections 8-15: Remaining pipeline stages
+
+### Context for Next Session
+All QA issues from Sections 4-5 are now resolved. The utility foundation is robust:
+- Stage timeout enforcement via `withTimeout()` family (uses `STAGE_TIMEOUT_MS = 60000`)
+- Robust logging with edge case handling
+- Single source of truth for schema version
+- Runtime validation for all pipeline outputs
+
+**TypeScript compiles with 0 errors.**
+
+**Recommended next steps:**
+1. Section 6: Implement `normalize.ts` (content normalization, hash generation) and `dedup.ts` (hash + Jaccard similarity)
+2. Section 7: Implement collectors (start with `web.ts` using Perplexity, then orchestrator)
+3. Proceed to Section 8 (Validation Engine) after collectors are working
+
+---

@@ -202,10 +202,10 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
   - [x] Return parsed object or throw
 
 ### 2.3 Retry with Fix-JSON Prompt
-- [ ] Create `retryWithFixPrompt(model, originalPrompt, badResponse)`:
-  - [ ] Send "Fix this JSON: {badResponse}" prompt
-  - [ ] Re-validate
-  - [ ] Return fixed response or throw
+- [x] Create `retryWithFixPrompt(model, originalPrompt, badResponse)`:
+  - [x] Send "Fix this JSON: {badResponse}" prompt
+  - [x] Re-validate
+  - [x] Return fixed response or throw
 
 ---
 
@@ -241,15 +241,15 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
 ## 4. Configuration
 
 **File: `src/config.ts`**
-- [ ] Load environment variables with dotenv
-- [ ] Validate required API keys based on sources:
-  - [ ] PERPLEXITY_API_KEY (always required)
-  - [ ] GOOGLE_AI_API_KEY (always required)
-  - [ ] OPENAI_API_KEY (always required)
-  - [ ] SCRAPECREATORS_API_KEY (required only if linkedin/x sources)
-- [ ] Fail fast with clear error messages if keys missing
-- [ ] **Never log API keys** (sanitize all output)
-- [ ] Export quality profile defaults:
+- [x] Load environment variables with dotenv
+- [x] Validate required API keys based on sources:
+  - [x] PERPLEXITY_API_KEY (always required)
+  - [x] GOOGLE_AI_API_KEY (always required)
+  - [x] OPENAI_API_KEY (always required)
+  - [x] SCRAPECREATORS_API_KEY (required only if linkedin/x sources)
+- [x] Fail fast with clear error messages if keys missing
+- [x] **Never log API keys** (sanitize all output)
+- [x] Export quality profile defaults:
   ```typescript
   const QUALITY_PROFILES = {
     fast: { maxTotal: 30, skipValidation: true, skipScoring: true, skipImage: true },
@@ -257,8 +257,9 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
     thorough: { maxTotal: 150, skipValidation: false, skipScoring: false, skipImage: false }
   };
   ```
-- [ ] Define concurrency limits per API
-- [ ] Define stage timeouts
+- [x] Define concurrency limits per API
+- [x] Define stage timeouts
+- [x] **QA Fix**: Implement `withTimeout()` utility for stage timeout enforcement (Issue #1 from Section4n5-QA)
 
 ---
 
@@ -267,31 +268,34 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
 ### 5.1 Logger (with Secrets Sanitization)
 
 **File: `src/utils/logger.ts`**
-- [ ] Create `sanitize(text)` to remove API keys from output
-- [ ] `logStage(name)` - Stage header with timestamp
-- [ ] `logProgress(current, total, message)` - Progress indicator
-- [ ] `logSuccess(message)` - Green success
-- [ ] `logWarning(message)` - Yellow warning
-- [ ] `logError(message)` - Red error
-- [ ] `logCost(estimates)` - Format cost breakdown
-- [ ] `logVerbose(message)` - Only if --verbose flag
-- [ ] All functions call `sanitize()` before output
+- [x] Create `sanitize(text)` to remove API keys from output
+- [x] `logStage(name)` - Stage header with timestamp
+- [x] `logProgress(current, total, message)` - Progress indicator
+- [x] `logSuccess(message)` - Green success
+- [x] `logWarning(message)` - Yellow warning
+- [x] `logError(message)` - Red error
+- [x] `logCost(estimates)` - Format cost breakdown
+- [x] `logVerbose(message)` - Only if --verbose flag
+- [x] All functions call `sanitize()` before output
+- [x] **QA Fix**: Guard `logProgress()` against divide-by-zero when total=0 (Issue #2 from Section4n5-QA)
 
 ### 5.2 File Writer (with Provenance)
 
 **File: `src/utils/fileWriter.ts`**
-- [ ] `ensureOutputDir(basePath)` - Create timestamped output directory
-- [ ] `writeJSON<T>(path, data, schema?)` - Write with optional validation
-- [ ] `writeMarkdown(path, content)` - Write markdown file
-- [ ] `writePNG(path, buffer)` - Write binary image
-- [ ] `writeSourcesJson(sources: SourceReference[])` - Provenance file
-- [ ] `writeSourcesMd(sources: SourceReference[])` - Human-readable sources
-- [ ] `writePipelineStatus(status)` - Run metadata and errors
+- [x] `ensureOutputDir(basePath)` - Create timestamped output directory
+- [x] `writeJSON<T>(path, data, schema?)` - Write with optional validation
+- [x] `writeMarkdown(path, content)` - Write markdown file
+- [x] `writePNG(path, buffer)` - Write binary image
+- [x] `writeSourcesJson(sources: SourceReference[])` - Provenance file
+- [x] `writeSourcesMd(sources: SourceReference[])` - Human-readable sources
+- [x] `writePipelineStatus(status)` - Run metadata and errors
+- [x] **QA Fix**: Use `SCHEMA_VERSION` constant instead of hardcoded '1.0.0' (Issue #3 from Section4n5-QA)
+- [x] **QA Fix**: Create `PipelineStatusSchema` and validate in `writePipelineStatus()` (Issue #4 from Section4n5-QA)
 
 ### 5.3 Retry with Exponential Backoff
 
 **File: `src/utils/retry.ts`**
-- [ ] `withRetry<T>(fn, options)`:
+- [x] `withRetry<T>(fn, options)`:
   ```typescript
   interface RetryOptions {
     maxRetries: number;
@@ -300,14 +304,16 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
     retryOn?: (error: Error) => boolean;
   }
   ```
-- [ ] Handle rate limit errors specifically (429)
-- [ ] Log retry attempts if verbose
-- [ ] Return last error if all retries fail
+- [x] Handle rate limit errors specifically (429)
+- [x] Log retry attempts if verbose
+- [x] Return last error if all retries fail
+- [x] **QA Fix**: Implement `withTimeout()`, `withTimeoutResult()`, `withRetryAndTimeout()` for stage timeout enforcement
+- [x] **QA Fix**: Add `TimeoutError` class for timeout failures
 
 ### 5.4 Cost Estimator (NEW)
 
 **File: `src/utils/cost.ts`**
-- [ ] Define cost per token/image for each API:
+- [x] Define cost per token/image for each API:
   ```typescript
   const COSTS = {
     perplexity: { inputPerMillion: 3, outputPerMillion: 15 },
@@ -316,9 +322,9 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
     nanoBanana: { '2k': 0.139, '4k': 0.24 }
   };
   ```
-- [ ] `estimateCost(config: PipelineConfig)` - Pre-run estimate
-- [ ] `calculateActualCost(usage)` - Post-run actual cost
-- [ ] Return breakdown by service + total
+- [x] `estimateCost(config: PipelineConfig)` - Pre-run estimate
+- [x] `calculateActualCost(usage)` - Post-run actual cost
+- [x] Return breakdown by service + total
 
 ---
 

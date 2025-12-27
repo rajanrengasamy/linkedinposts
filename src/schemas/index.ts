@@ -77,6 +77,20 @@ export {
   type SourcesFile,
 } from './sourceReference.js';
 
+// PipelineStatus - run metadata and status
+export {
+  QualityProfileSchema,
+  ImageResolutionSchema,
+  SourceOptionSchema,
+  PipelineConfigSchema,
+  PipelineStatusSchema,
+  type QualityProfile,
+  type ImageResolution,
+  type SourceOption,
+  type PipelineConfigValidated,
+  type PipelineStatusValidated,
+} from './pipelineStatus.js';
+
 // ============================================
 // Validation Result Types
 // ============================================
@@ -260,4 +274,118 @@ export function formatZodError(error: z.ZodError): string {
       return `${path}${e.message}`;
     })
     .join('\n');
+}
+
+// ============================================
+// Retry with Fix-JSON Prompt (Section 2.3)
+// ============================================
+
+/**
+ * Result type for retryWithFixPrompt
+ */
+export type RetryResult<T> =
+  | { success: true; data: T; retried: boolean }
+  | { success: false; error: string; originalError: string };
+
+/**
+ * Model call function signature for retry helper
+ * Takes a prompt and returns raw model response text
+ */
+export type ModelCallFn = (prompt: string) => Promise<string>;
+
+/**
+ * Retry model output with a "fix JSON" prompt when validation fails
+ *
+ * This function attempts to parse and validate model output. If validation
+ * fails, it sends a follow-up prompt asking the model to fix the JSON,
+ * then validates again.
+ *
+ * @param callModel - Function that calls the model and returns response text
+ * @param schema - Zod schema to validate against
+ * @param originalResponse - The original model response that failed validation
+ * @param originalPrompt - The original prompt (for context in fix request)
+ * @returns RetryResult with validated data or error details
+ *
+ * @example
+ * ```typescript
+ * const result = await retryWithFixPrompt(
+ *   async (prompt) => await openai.chat(prompt),
+ *   ScoredItemSchema,
+ *   badJsonResponse,
+ *   originalScoringPrompt
+ * );
+ * if (result.success) {
+ *   console.log('Got valid data:', result.data);
+ * }
+ * ```
+ */
+export async function retryWithFixPrompt<T>(
+  callModel: ModelCallFn,
+  schema: z.ZodSchema<T>,
+  originalResponse: string,
+  originalPrompt?: string
+): Promise<RetryResult<T>> {
+  // First, try to parse the original response
+  const firstAttempt = parseAndValidate(schema, originalResponse);
+
+  if (firstAttempt.success) {
+    return { success: true, data: firstAttempt.data, retried: false };
+  }
+
+  const originalError = firstAttempt.error;
+
+  // Build the fix prompt
+  const fixPrompt = buildFixJsonPrompt(originalResponse, originalError, originalPrompt);
+
+  try {
+    // Call model with fix prompt
+    const fixedResponse = await callModel(fixPrompt);
+
+    // Try to parse and validate the fixed response
+    const secondAttempt = parseAndValidate(schema, fixedResponse);
+
+    if (secondAttempt.success) {
+      return { success: true, data: secondAttempt.data, retried: true };
+    }
+
+    // Both attempts failed
+    return {
+      success: false,
+      error: `Fix attempt also failed: ${secondAttempt.error}`,
+      originalError,
+    };
+  } catch (e) {
+    const error = e as Error;
+    return {
+      success: false,
+      error: `Model call failed during fix attempt: ${error.message}`,
+      originalError,
+    };
+  }
+}
+
+/**
+ * Build the prompt to ask model to fix invalid JSON
+ */
+function buildFixJsonPrompt(
+  badResponse: string,
+  validationError: string,
+  originalPrompt?: string
+): string {
+  const contextSection = originalPrompt
+    ? `\n\nOriginal request context:\n${originalPrompt.slice(0, 500)}${originalPrompt.length > 500 ? '...' : ''}`
+    : '';
+
+  return `The following JSON response has validation errors. Please fix it and return ONLY valid JSON with no additional text.
+
+Validation errors:
+${validationError}
+
+Invalid JSON:
+\`\`\`json
+${badResponse}
+\`\`\`
+${contextSection}
+
+Return the corrected JSON only, with no explanation or markdown formatting:`;
 }

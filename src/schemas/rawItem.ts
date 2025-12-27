@@ -68,8 +68,17 @@ export const RawItemSchema = z.object({
   /** Main text content */
   content: z.string().min(1, 'Content cannot be empty'),
 
-  /** Normalized hash for deduplication (first 16 chars of SHA-256) */
-  contentHash: z.string().min(1),
+  /**
+   * Normalized hash for deduplication.
+   * Format: First 16 characters of SHA-256 hash over normalized content.
+   * Must be exactly 16 lowercase hexadecimal characters.
+   */
+  contentHash: z
+    .string()
+    .regex(
+      /^[a-f0-9]{16}$/,
+      'contentHash must be exactly 16 lowercase hex characters (first 16 chars of SHA-256)'
+    ),
 
   /** Article/post title if available */
   title: z.string().optional(),

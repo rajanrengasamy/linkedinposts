@@ -171,11 +171,13 @@ export type StageResult<T> =
 
 /**
  * Collection stage metadata
+ *
+ * Note: Uses 'xCount' to match source enum ('x'), not 'twitterCount'
  */
 export interface CollectionMetadata {
   webCount: number;
   linkedinCount: number;
-  twitterCount: number;
+  xCount: number;
   duplicatesRemoved: number;
   errors: string[];
 }
@@ -190,6 +192,11 @@ export interface CollectionResult {
 
 /**
  * Pipeline status for pipeline_status.json
+ *
+ * Stores the FULL resolved PipelineConfig (not Partial) to ensure:
+ * 1. Runs are fully reproducible from saved status
+ * 2. Debugging has complete context (quality profile, limits, flags)
+ * 3. Cost analysis can correlate with exact settings used
  */
 export interface PipelineStatus {
   success: boolean;
@@ -198,7 +205,7 @@ export interface PipelineStatus {
   durationMs?: number;
   stage?: string;
   error?: string;
-  config: Partial<PipelineConfig>;
+  config: PipelineConfig;
   costs?: import('../schemas/index.js').CostBreakdown;
 }
 

@@ -31,23 +31,54 @@ export const VERIFICATION_BOOSTS: Record<VerificationLevel, number> = {
 
 /**
  * Individual quote verification result
+ *
+ * PROVENANCE RULE: If verified=true, sourceUrl is REQUIRED.
+ * This enforces the PRD principle: "No quote or claim appears
+ * in the final output unless it has a verified source URL."
  */
-export const QuoteVerifiedSchema = z.object({
-  /** The exact quote text that was verified */
-  quote: z.string().min(1),
+export const QuoteVerifiedSchema = z
+  .object({
+    /** The exact quote text that was verified */
+    quote: z.string().min(1),
 
-  /** Whether the quote was successfully verified */
-  verified: z.boolean(),
+    /** Whether the quote was successfully verified */
+    verified: z.boolean(),
 
-  /** Source URL where quote was found (if verified) */
-  sourceUrl: z.string().url().optional(),
-});
+    /** Source URL where quote was found (REQUIRED when verified=true) */
+    sourceUrl: z.string().url().optional(),
+  })
+  .refine(
+    (data) => !data.verified || (data.verified && !!data.sourceUrl),
+    {
+      message: 'sourceUrl is required when verified is true',
+      path: ['sourceUrl'],
+    }
+  );
 export type QuoteVerified = z.infer<typeof QuoteVerifiedSchema>;
 
 /**
- * Validation metadata attached to each item after verification
+ * Minimum sources required for each verification level
+ * UNVERIFIED can have 0, others require corroboration
  */
-export const ValidationSchema = z.object({
+const MIN_SOURCES_FOR_LEVEL: Record<VerificationLevel, number> = {
+  UNVERIFIED: 0,
+  SOURCE_CONFIRMED: 1,
+  MULTISOURCE_CONFIRMED: 2,
+  PRIMARY_SOURCE: 1,
+};
+
+/**
+ * Validation metadata attached to each item after verification
+ *
+ * PROVENANCE RULE: Non-UNVERIFIED levels MUST have corroborating sources.
+ * - SOURCE_CONFIRMED requires at least 1 source
+ * - MULTISOURCE_CONFIRMED requires at least 2 independent sources
+ * - PRIMARY_SOURCE requires at least 1 source (the authoritative one)
+ */
+/**
+ * Base validation object schema (without refinement)
+ */
+const ValidationBaseSchema = z.object({
   /** Overall verification level for this item */
   level: VerificationLevelSchema,
 
@@ -66,6 +97,27 @@ export const ValidationSchema = z.object({
   /** Individual quote verification results */
   quotesVerified: z.array(QuoteVerifiedSchema),
 });
+
+/**
+ * Check if sourcesFound count satisfies verification level requirements
+ */
+function validateSourcesForLevel(
+  level: VerificationLevel,
+  sourcesFound: string[]
+): boolean {
+  const minRequired = MIN_SOURCES_FOR_LEVEL[level];
+  return sourcesFound.length >= minRequired;
+}
+
+export const ValidationSchema = ValidationBaseSchema.refine(
+  (data) => validateSourcesForLevel(data.level, data.sourcesFound),
+  {
+    message:
+      'sourcesFound count must satisfy verification level requirements: ' +
+      'SOURCE_CONFIRMED requires ≥1, MULTISOURCE_CONFIRMED requires ≥2, PRIMARY_SOURCE requires ≥1',
+    path: ['sourcesFound'],
+  }
+);
 export type Validation = z.infer<typeof ValidationSchema>;
 
 /**
