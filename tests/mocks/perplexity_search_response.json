@@ -1,0 +1,32 @@
+{
+  "id": "chatcmpl-mock-perplexity-001",
+  "model": "sonar-reasoning-pro",
+  "created": 1735300200,
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "Based on my research, here are the key AI trends and insights from expert sources:\n\n## AI Agents Are Transforming Enterprise Workflows\n\nAccording to recent analysis, AI agents are becoming the primary interface for enterprise software. McKinsey reports that companies implementing AI agents see 40% productivity gains in knowledge work tasks[1].\n\n\"The shift from chatbots to autonomous agents represents the biggest paradigm change since mobile computing,\" says Dr. Sarah Chen, AI Research Lead at Stanford HAI[2].\n\n## Multimodal AI Is Reaching Mainstream Adoption\n\nGartner predicts that by 2026, 75% of enterprise AI applications will incorporate multimodal capabilities[3]. This includes:\n- Vision + language models for document processing\n- Audio + text for meeting transcription and analysis\n- Video understanding for security and manufacturing\n\n## Key Statistics on AI Investment\n\n- Global AI spending reached $200 billion in 2024, up 35% YoY[4]\n- 67% of Fortune 500 companies have deployed generative AI in production[1]\n- The average ROI on AI projects has improved from 1.3x to 2.1x over the past year[3]\n\n\"We're seeing a fundamental shift from AI experimentation to AI-first business strategies,\" notes Marcus Thompson, CTO of Anthropic[5].\n\n## Emerging Concerns and Governance\n\nThe EU AI Act implementation has prompted 80% of large enterprises to establish AI governance committees[4]. Key focus areas include:\n- Model transparency and explainability\n- Bias detection and mitigation\n- Data provenance tracking\n\nDr. Jennifer Wu, Director of AI Ethics at MIT, emphasizes: \"Responsible AI deployment isn't just about compliance - it's becoming a competitive advantage as customers demand transparency\"[2]."
+      },
+      "delta": {
+        "role": "assistant",
+        "content": ""
+      }
+    }
+  ],
+  "citations": [
+    "https://www.mckinsey.com/capabilities/quantumblack/our-insights/ai-agents-enterprise-2025",
+    "https://hai.stanford.edu/news/ai-agents-paradigm-shift",
+    "https://www.gartner.com/en/newsroom/press-releases/2024-12-ai-predictions",
+    "https://www.statista.com/statistics/global-ai-spending-2024",
+    "https://www.anthropic.com/research/enterprise-ai-transformation"
+  ],
+  "usage": {
+    "prompt_tokens": 256,
+    "completion_tokens": 512,
+    "total_tokens": 768
+  }
+}

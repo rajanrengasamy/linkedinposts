@@ -144,8 +144,9 @@ For each user prompt, the system derives 3-5 sub-queries:
 
 - **Purpose**: Scrape LinkedIn and X (Twitter) posts
 - **Endpoints**:
-  - LinkedIn: `/v1/linkedin/search`, `/v1/linkedin/posts`
-  - Twitter: `/v1/twitter/search`, `/v1/twitter/community/tweets`
+  - LinkedIn: `/v1/linkedin/profile`, `/v1/linkedin/post`
+  - Twitter: `/v1/twitter/search`
+- **Note**: `/v1/twitter/community/tweets` is not currently implemented
 - **Auth**: `x-api-key` header
 - **Compliance**: Unofficial API; may violate platform ToS
 - **Gating**: Only used when `--sources linkedin` or `--sources x` specified
@@ -959,6 +960,18 @@ Checks:
 5. **Language/Region**: English-only initially, or support for other languages? Specific regions to focus on?
 
 6. **Error Budget**: What percentage of runs can fail? (e.g., 1 in 10 acceptable for Phase 0?)
+
+---
+
+## Known Limitations
+
+The following limitations exist in the current implementation:
+
+1. **LinkedIn Collection**: Uses a curated list of profiles rather than dynamic query search. The query parameter is currently ignored in favor of hardcoded profile handles.
+
+2. **Web Items Missing publishedAt**: Web items collected via Perplexity API do not include `publishedAt` timestamps. This is a limitation of the Perplexity API which does not return publication dates for search results.
+
+3. **Twitter Community Tweets**: The `/v1/twitter/community/tweets` endpoint is not currently implemented. Only `/v1/twitter/search` is available.
 
 ---
 

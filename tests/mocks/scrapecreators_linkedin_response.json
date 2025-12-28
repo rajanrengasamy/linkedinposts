@@ -1,0 +1,55 @@
+{
+  "success": true,
+  "name": "Satya Nadella",
+  "headline": "Chairman and CEO at Microsoft",
+  "handle": "satyanadella",
+  "url": "https://www.linkedin.com/in/satyanadella",
+  "followers": 11500000,
+  "posts": [
+    {
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7284567890123456789",
+      "text": "Just wrapped up our Q4 AI strategy review. Key insight: companies that treat AI as a tool vs. those building AI-native workflows see dramatically different outcomes.\n\nThe difference isn't the technology - it's the organizational mindset.\n\n3 patterns I observed in top performers:\n\n1. They start with process redesign, not tool adoption\n2. They measure outcomes, not AI usage metrics\n3. They invest heavily in prompt engineering training\n\nWhat patterns are you seeing in successful AI transformations?\n\n#AI #DigitalTransformation #Leadership",
+      "timestamp": "2025-12-26T14:30:00.000Z",
+      "likeCount": 2847,
+      "commentCount": 312,
+      "repostCount": 189,
+      "reactionCount": 3100
+    },
+    {
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7284567890123456790",
+      "text": "Hot take: The best AI engineers I've hired in 2024 didn't come from ML backgrounds.\n\nThey came from:\n- Systems engineering\n- Product management\n- Domain expertise (healthcare, finance, legal)\n\nWhy? Because building production AI systems is 20% model work and 80% everything else:\n- Data pipeline architecture\n- User experience design\n- Edge case handling\n- Stakeholder communication\n\nWe're over-indexing on ML skills and under-indexing on systems thinking.\n\nAgree or disagree?",
+      "timestamp": "2025-12-25T09:15:00.000Z",
+      "likeCount": 5621,
+      "commentCount": 847,
+      "repostCount": 423,
+      "reactionCount": 6200
+    },
+    {
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7284567890123456791",
+      "text": "I asked Claude to review our company's AI ethics policy.\n\nIt found 14 gaps we missed.\n\nThe most critical one? We had no process for handling AI outputs that could affect employment decisions.\n\nNow we're using AI to improve our AI governance.\n\nMeta? Maybe. Effective? Absolutely.\n\nThe tools themselves can help us use them more responsibly.",
+      "timestamp": "2025-12-24T16:45:00.000Z",
+      "likeCount": 1892,
+      "commentCount": 156,
+      "repostCount": 87,
+      "reactionCount": 2100
+    },
+    {
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7284567890123456792",
+      "text": "Breaking: Just published our 2025 State of AI in Enterprise report.\n\nTop findings:\n\n- 78% of enterprises now have AI in production (up from 45% in 2023)\n- Average time to deploy AI models dropped from 6 months to 6 weeks\n- #1 challenge: data quality (not model performance)\n- ROI positive projects: 62% (up from 34% in 2023)\n\nFull report link in comments. Would love your thoughts on what we might have missed.\n\n#AIReport #Enterprise #Technology",
+      "timestamp": "2025-12-23T11:00:00.000Z",
+      "likeCount": 4156,
+      "commentCount": 523,
+      "repostCount": 678,
+      "reactionCount": 4800
+    },
+    {
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7284567890123456793",
+      "text": "The quiet revolution nobody's talking about:\n\nSmall language models (SLMs) running on-device.\n\nWhy this matters:\n1. Privacy by design - your data never leaves your device\n2. Latency measured in milliseconds, not seconds\n3. Works offline - critical for edge computing\n4. 10x cheaper to run than cloud-based LLMs\n\nWe just deployed a 3B parameter model that handles 90% of our customer support queries entirely on-device.\n\nThe future isn't just bigger models. It's smarter deployment.",
+      "timestamp": "2025-12-22T08:30:00.000Z",
+      "likeCount": 3234,
+      "commentCount": 298,
+      "repostCount": 456,
+      "reactionCount": 3700
+    }
+  ]
+}

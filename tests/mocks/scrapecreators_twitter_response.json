@@ -1,0 +1,90 @@
+{
+  "success": true,
+  "tweets": [
+    {
+      "id": "1873456789012345678",
+      "text": "Just shipped our AI coding assistant to 1M developers.\n\nKey insight from the rollout: the best AI tools don't replace developers, they amplify their intent.\n\nOur users write 40% less code but build 60% more features.\n\nThe future of development is collaborative, not automated.",
+      "url": "https://twitter.com/techfounder/status/1873456789012345678",
+      "user": {
+        "id": "12345678",
+        "name": "David Park",
+        "screen_name": "techfounder",
+        "profile_url": "https://twitter.com/techfounder"
+      },
+      "created_at": "2025-12-27T18:45:00.000Z",
+      "favorite_count": 12453,
+      "retweet_count": 3421,
+      "quote_count": 567,
+      "reply_count": 892,
+      "view_count": 1456000
+    },
+    {
+      "id": "1873456789012345679",
+      "text": "Thread on what I learned building AI systems at scale:\n\n1/ The hardest part isn't the AI. It's the data.\n\n95% of our engineering time goes into:\n- Data validation\n- Pipeline reliability\n- Edge case handling\n- Monitoring & observability\n\nOnly 5% is actual model work.",
+      "url": "https://twitter.com/mlops_engineer/status/1873456789012345679",
+      "user": {
+        "id": "23456789",
+        "name": "Elena Rodriguez",
+        "screen_name": "mlops_engineer",
+        "profile_url": "https://twitter.com/mlops_engineer"
+      },
+      "created_at": "2025-12-26T14:20:00.000Z",
+      "favorite_count": 8934,
+      "retweet_count": 2156,
+      "quote_count": 345,
+      "reply_count": 423,
+      "view_count": 892000
+    },
+    {
+      "id": "1873456789012345680",
+      "text": "Unpopular opinion: Most companies don't need custom AI models.\n\nThey need:\n- Better data infrastructure\n- Clear use case definition\n- Proper evaluation frameworks\n- Change management processes\n\nThe model is often the easy part. Everything around it is hard.",
+      "url": "https://twitter.com/ai_realist/status/1873456789012345680",
+      "user": {
+        "id": "34567890",
+        "name": "Dr. Marcus Webb",
+        "screen_name": "ai_realist",
+        "profile_url": "https://twitter.com/ai_realist"
+      },
+      "created_at": "2025-12-25T21:10:00.000Z",
+      "favorite_count": 15678,
+      "retweet_count": 4532,
+      "quote_count": 892,
+      "reply_count": 1234,
+      "view_count": 2134000
+    },
+    {
+      "id": "1873456789012345681",
+      "text": "We just open-sourced our AI safety evaluation toolkit.\n\n2 years of work, now free for everyone.\n\nIncludes:\n- Prompt injection detection\n- Output validation frameworks\n- Red-teaming templates\n- Bias evaluation metrics\n\nLink: github.com/safetylabs/eval-toolkit\n\nRT to spread the word",
+      "url": "https://twitter.com/ai_safety_lab/status/1873456789012345681",
+      "user": {
+        "id": "45678901",
+        "name": "AI Safety Lab",
+        "screen_name": "ai_safety_lab",
+        "profile_url": "https://twitter.com/ai_safety_lab"
+      },
+      "created_at": "2025-12-24T16:00:00.000Z",
+      "favorite_count": 23456,
+      "retweet_count": 8765,
+      "quote_count": 1234,
+      "reply_count": 567,
+      "view_count": 4567000
+    },
+    {
+      "id": "1873456789012345682",
+      "text": "Hot take: In 2025, the most valuable AI skill isn't prompt engineering.\n\nIt's knowing when NOT to use AI.\n\nSeen too many teams:\n- Overcomplicate simple problems\n- Add latency to critical paths\n- Create maintenance nightmares\n\nSometimes a regex is all you need.",
+      "url": "https://twitter.com/pragmatic_dev/status/1873456789012345682",
+      "user": {
+        "id": "56789012",
+        "name": "Sam Nakamura",
+        "screen_name": "pragmatic_dev",
+        "profile_url": "https://twitter.com/pragmatic_dev"
+      },
+      "created_at": "2025-12-23T12:30:00.000Z",
+      "favorite_count": 6789,
+      "retweet_count": 1890,
+      "quote_count": 234,
+      "reply_count": 456,
+      "view_count": 567000
+    }
+  ]
+}

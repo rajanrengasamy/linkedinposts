@@ -395,94 +395,100 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
 ### 7.1 Web Collector (Perplexity) - Required
 
 **File: `src/collectors/web.ts`**
-- [ ] Implement `searchWeb(query: string, config: PipelineConfig)`:
-  - [ ] Build Perplexity API request:
+
+**Known Limitation**: Web items do not include `publishedAt` timestamps due to Perplexity API limitations.
+
+- [x] Implement `searchWeb(query: string, config: PipelineConfig)`:
+  - [x] Build Perplexity API request:
     ```typescript
     {
       model: "sonar-reasoning-pro",
       messages: [{ role: "user", content: buildSearchPrompt(query) }]
     }
     ```
-  - [ ] Parse response extracting:
-    - [ ] Main content
-    - [ ] Citations (URLs)
-    - [ ] Source titles
-  - [ ] Generate stable UUIDs for each item
-  - [ ] Set `retrievedAt` timestamp
-  - [ ] Calculate contentHash
-  - [ ] Validate against RawItemSchema
-  - [ ] Return `RawItem[]`
-- [ ] `buildSearchPrompt(query)`:
-  - [ ] Derive 3-5 sub-queries from main prompt
-  - [ ] Request structured output with citations
-- [ ] Error handling: **FATAL** if web collector fails (required source)
-- [ ] Respect concurrency limit (3)
+  - [x] Parse response extracting:
+    - [x] Main content
+    - [x] Citations (URLs)
+    - [x] Source titles
+  - [x] Generate stable UUIDs for each item
+  - [x] Set `retrievedAt` timestamp
+  - [x] Calculate contentHash
+  - [x] Validate against RawItemSchema
+  - [x] Return `RawItem[]`
+- [x] `buildSearchPrompt(query)`:
+  - [x] Derive 3-5 sub-queries from main prompt
+  - [x] Request structured output with citations
+- [x] Error handling: **FATAL** if web collector fails (required source)
+- [x] Respect concurrency limit (3)
 
 ### 7.2 LinkedIn Collector (Optional, Gated)
 
 **File: `src/collectors/linkedin.ts`**
-- [ ] Check if 'linkedin' in config.sources, skip if not
-- [ ] Validate SCRAPECREATORS_API_KEY exists
-- [ ] Research ScrapeCreators LinkedIn endpoints:
-  - [ ] `/v1/linkedin/search` - Search posts
-  - [ ] `/v1/linkedin/posts` - Get posts from profile
-- [ ] Implement `searchLinkedIn(query, config)`:
-  - [ ] Build API request with x-api-key header
-  - [ ] Parse response to RawItem[]:
-    - [ ] Map engagement (reactions → likes, comments, shares)
-    - [ ] Extract author info
-    - [ ] Generate contentHash
-  - [ ] Validate against RawItemSchema
-  - [ ] Return items or empty array on failure (non-fatal)
-- [ ] Log compliance warning on first use
-- [ ] Respect concurrency limit (5)
+
+**Known Limitation**: LinkedIn collection uses a curated list of profiles rather than dynamic query search. The query parameter is currently ignored.
+
+- [x] Check if 'linkedin' in config.sources, skip if not
+- [x] Validate SCRAPECREATORS_API_KEY exists
+- [x] Research ScrapeCreators LinkedIn endpoints:
+  - [x] `/v1/linkedin/profile` - Get profile with posts
+  - [x] `/v1/linkedin/post` - Get single post by URL
+- [x] Implement `searchLinkedIn(query, config)`:
+  - [x] Build API request with x-api-key header
+  - [x] Parse response to RawItem[]:
+    - [x] Map engagement (reactions → likes, comments, shares)
+    - [x] Extract author info
+    - [x] Generate contentHash
+  - [x] Validate against RawItemSchema
+  - [x] Return items or empty array on failure (non-fatal)
+- [x] Log compliance warning on first use
+- [x] Respect concurrency limit (5)
 
 ### 7.3 Twitter Collector (Optional, Gated)
 
 **File: `src/collectors/twitter.ts`**
-- [ ] Check if 'x' in config.sources, skip if not
-- [ ] Validate SCRAPECREATORS_API_KEY exists
-- [ ] Research ScrapeCreators Twitter endpoints:
-  - [ ] `/v1/twitter/search` - Search tweets
-  - [ ] `/v1/twitter/community/tweets` - Community tweets
-- [ ] Implement `searchTwitter(query, config)`:
-  - [ ] Build API request with x-api-key header
-  - [ ] Parse response to RawItem[]:
-    - [ ] Map X-specific engagement:
-      - [ ] likes
-      - [ ] retweets
-      - [ ] quotes
-      - [ ] replies
-      - [ ] impressions (if available)
-    - [ ] Extract author handle
-    - [ ] Generate contentHash
-  - [ ] Validate against RawItemSchema
-  - [ ] Return items or empty array on failure (non-fatal)
-- [ ] Log compliance warning on first use
-- [ ] Respect concurrency limit (5)
+- [x] Check if 'x' in config.sources, skip if not
+- [x] Validate SCRAPECREATORS_API_KEY exists
+- [x] Research ScrapeCreators Twitter endpoints:
+  - [x] `/v1/twitter/search` - Search tweets
+  - [x] `/v1/twitter/user/tweets` - User tweets
+- [x] Implement `searchTwitter(query, config)`:
+  - [x] Build API request with x-api-key header
+  - [x] Parse response to RawItem[]:
+    - [x] Map X-specific engagement:
+      - [x] likes
+      - [x] retweets
+      - [x] quotes
+      - [x] replies
+      - [x] impressions (if available)
+    - [x] Extract author handle
+    - [x] Generate contentHash
+  - [x] Validate against RawItemSchema
+  - [x] Return items or empty array on failure (non-fatal)
+- [x] Log compliance warning on first use
+- [x] Respect concurrency limit (5)
 
 ### 7.4 Collector Orchestrator
 
 **File: `src/collectors/index.ts`**
-- [ ] Implement `collectAll(query, config)`:
-  - [ ] Determine which collectors to run based on config.sources
-  - [ ] Run collectors in parallel with `Promise.allSettled`
-  - [ ] Handle partial failures:
-    - [ ] Web fails → FATAL, throw error
-    - [ ] LinkedIn/Twitter fails → log warning, continue
-  - [ ] Merge results with source tagging
-  - [ ] Apply maxPerSource limit before merge
-  - [ ] Deduplicate merged results
-  - [ ] Apply maxTotal limit
-  - [ ] Return `RawItem[]` and collection metadata
-- [ ] Return `CollectionResult`:
+- [x] Implement `collectAll(query, config)`:
+  - [x] Determine which collectors to run based on config.sources
+  - [x] Run collectors in parallel with `Promise.allSettled`
+  - [x] Handle partial failures:
+    - [x] Web fails → FATAL, throw error
+    - [x] LinkedIn/Twitter fails → log warning, continue
+  - [x] Merge results with source tagging
+  - [x] Apply maxPerSource limit before merge
+  - [x] Deduplicate merged results
+  - [x] Apply maxTotal limit
+  - [x] Return `RawItem[]` and collection metadata
+- [x] Return `CollectionResult`:
   ```typescript
   interface CollectionResult {
     items: RawItem[];
     metadata: {
       webCount: number;
       linkedinCount: number;
-      twitterCount: number;
+      xCount: number;
       duplicatesRemoved: number;
       errors: string[];
     };
