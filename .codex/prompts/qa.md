@@ -20,7 +20,7 @@ The implementation for this section is marked as complete. You must verify if it
     -   **"Rethink and Ultrathink"**: Simulate failure modes. Verify logic deeply.
 
 3.  **Report**:
-    -   If you find issues, capture them in `docs/Section{{ args }}-QA-issues.md`.
+    -   If you find issues, capture them in `docs/Section{{ args }}-QA-issuesCodex.md`.
     -   Make findings **super detailed**.
 
 4.  **Completion**:

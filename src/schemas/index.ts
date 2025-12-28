@@ -281,9 +281,12 @@ export function formatZodError(error: z.ZodError): string {
 // ============================================
 
 /**
- * Result type for retryWithFixPrompt
+ * Result type for retryWithFixPrompt (parse retry operations).
+ *
+ * NOTE: Named ParseRetryResult to avoid collision with RetryResult in
+ * src/utils/retry.ts which has different semantics (attempts count vs retried boolean).
  */
-export type RetryResult<T> =
+export type ParseRetryResult<T> =
   | { success: true; data: T; retried: boolean }
   | { success: false; error: string; originalError: string };
 
@@ -324,7 +327,7 @@ export async function retryWithFixPrompt<T>(
   schema: z.ZodSchema<T>,
   originalResponse: string,
   originalPrompt?: string
-): Promise<RetryResult<T>> {
+): Promise<ParseRetryResult<T>> {
   // First, try to parse the original response
   const firstAttempt = parseAndValidate(schema, originalResponse);
 

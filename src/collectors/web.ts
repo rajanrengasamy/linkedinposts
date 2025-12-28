@@ -14,39 +14,15 @@ import { generateContentHash, normalizeUrl } from '../processing/normalize.js';
 import { withRetryThrow, CRITICAL_RETRY_OPTIONS } from '../utils/retry.js';
 import { logVerbose, logProgress, logWarning } from '../utils/logger.js';
 import { generateStableId } from '../utils/stableId.js';
-
-// ============================================
-// Constants
-// ============================================
-
-const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions';
-const PERPLEXITY_MODEL = 'sonar-reasoning-pro';
+import {
+  PERPLEXITY_API_URL,
+  PERPLEXITY_MODEL,
+  type PerplexityResponse,
+} from '../types/perplexity.js';
 
 // ============================================
 // Types
 // ============================================
-
-/**
- * Perplexity API response structure
- */
-interface PerplexityResponse {
-  id: string;
-  model: string;
-  choices: Array<{
-    index: number;
-    message: {
-      role: string;
-      content: string;
-    };
-    finish_reason: string;
-  }>;
-  citations?: string[];
-  usage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
-}
 
 /**
  * Parsed content block from Perplexity response

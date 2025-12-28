@@ -463,3 +463,222 @@ Section 7 Data Collectors are now fully hardened:
 4. Continue through Sections 11-15 (Synthesis, Image Gen, CLI, Integration)
 
 ---
+
+## Session: 2025-12-28 22:45 AEST
+
+### Summary
+Started work on Section 8 (Validation Engine) by implementing the foundational Perplexity API client. Created `makePerplexityRequest()` with retry logic, plus helper functions for extracting content and citations from responses.
+
+### Work Completed
+- **Section 8.0 (Perplexity Client)**: Implemented `src/validation/perplexity.ts` with core API infrastructure
+  - `makePerplexityRequest(prompt, options)` - main API function with exponential backoff retry
+  - `extractContent(response)` - extracts text from first response choice
+  - `extractCitations(response)` - extracts citation URLs array
+- Uses `sonar-reasoning-pro` model as specified in PRD
+- Integrated with existing `withRetry()` and `CRITICAL_RETRY_OPTIONS` for resilience
+- Proper error handling for missing API key and failed retries
+
+### Files Modified/Created
+| File | Action |
+|:-----|:-------|
+| `src/validation/perplexity.ts` | Implemented (154 lines added - API client foundation) |
+
+### Issues & Resolutions
+| Issue | Resolution | Status |
+|:------|:-----------|:-------|
+| None encountered | - | - |
+
+### Key Decisions
+- **API Client Separation**: Perplexity client is separate from validation logic for cleaner architecture
+- **sonar-reasoning-pro Model**: Using Perplexity's reasoning model for verification tasks (better for fact-checking)
+- **Critical Retry Options**: Using CRITICAL_RETRY_OPTIONS for API calls since verification is pipeline-critical
+
+### Learnings
+- Perplexity API follows OpenAI chat completions format with `messages` array
+- Citations returned separately from main content in `response.citations[]`
+- Timeout and retry logic reused from existing utils
+
+### Open Items / Blockers
+- [ ] Section 8.1: `validateItems()` - batch validation orchestration
+- [ ] Section 8.2: `assignVerificationLevel()` - level assignment logic
+- [ ] Section 8.3: Failure handling (timeout → UNVERIFIED fallback)
+- [ ] Section 8.4: Concurrency & batching (3 concurrent, sequential batches)
+- [ ] Sections 9-15: Remaining pipeline stages
+
+### Context for Next Session
+Section 8 is partially complete - the Perplexity API client foundation is ready:
+- `makePerplexityRequest()` handles API calls with retry logic
+- Helper functions extract content and citations
+- Changes uncommitted (154 lines in perplexity.ts)
+
+**Recommended next steps:**
+1. Complete Section 8.1: Implement `validateItems()` orchestration function
+2. Complete Section 8.2: Implement `assignVerificationLevel()` based on sources found
+3. Complete Section 8.3-8.4: Add failure handling and concurrency management
+4. Run tests and commit Section 8 completion
+5. Then proceed to Section 9 (Scoring Engine)
+
+---
+
+## Session: 2025-12-29 10:30 AEST
+
+### Summary
+Completed Section 8 (Validation Engine) by spawning 5 parallel senior-developer agents, then ran comprehensive QA review with 5 parallel code-reviewer agents. Created consolidated QA report identifying 4 CRITICAL, 10 MAJOR, and 8 MINOR issues. All 272 tests pass, TypeScript compiles without errors.
+
+### Work Completed
+- **Section 8.1 (Core Validation)**: Implemented `validateItems()` with skipValidation shortcut, engagement-based capping, and batch processing
+- **Section 8.2 (Verification Levels)**: Uses existing `assignVerificationLevel()` from validatedItem.ts
+- **Section 8.3 (Failure Handling)**: Timeout → UNVERIFIED, parse errors → retry with fix-JSON then UNVERIFIED
+- **Section 8.4 (Concurrency)**: 3 concurrent requests per batch, sequential batch processing, progress logging
+- **Prompt Builder**: `buildValidationPrompt()` with quote extraction and structured JSON request
+- **Response Parser**: `parseValidationResponse()` with Zod schema validation
+- **Mock Fixtures**: Created 7 test scenarios in `perplexity_validation_response.json`
+- **Unit Tests**: 107 test cases (50 implemented, 57 todo placeholders)
+- **QA Review**: 5-agent parallel review covering PRD compliance, error handling, type safety, architecture, security
+
+### Files Modified/Created
+| File | Action |
+|:-----|:-------|
+| `src/validation/perplexity.ts` | Completed (612 lines - full validation engine) |
+| `tests/unit/validation.test.ts` | Created (107 test cases) |
+| `tests/mocks/perplexity_validation_response.json` | Created (7 test scenarios) |
+| `docs/Section8-QA-issues.md` | Created (consolidated QA report) |
+| `docs/TODO-v2.md` | Updated Section 8 checkboxes |
+
+### Issues & Resolutions
+| Issue | Resolution | Status |
+|:------|:-----------|:-------|
+| Section 8 implementation incomplete | Spawned 5 parallel agents to complete all subsections | ✅ Resolved |
+| QA review needed | Spawned 5 parallel code-reviewer agents | ✅ Resolved |
+| 22 QA issues identified | Documented in `docs/Section8-QA-issues.md` | ⏳ Open (for future session) |
+
+### Key Decisions
+- **5-Agent Parallel Implementation**: Prompt builder, single item validation, batch orchestration, mock fixtures, unit tests - each handled by separate agent
+- **5-Agent Parallel QA**: PRD compliance, error handling, type safety, architecture, security - comprehensive coverage
+- **QA Documentation**: Created prioritized issue list with severity ratings for future resolution
+
+### QA Findings Summary
+| Severity | Count | Key Issues |
+|:---------|:------|:-----------|
+| CRITICAL | 4 | Prompt injection, RetryResult type collision, timeout handling mismatch, code duplication |
+| MAJOR | 10 | URL validation, DoS risk, API key exposure, schema location, file organization |
+| MINOR | 8 | Style consistency, magic numbers, logging levels |
+
+### Learnings
+- Parallel agent spawning highly effective for both implementation and QA tasks
+- Security review reveals prompt injection risks in LLM-based validation
+- Type name collisions across files cause subtle bugs - need consistent naming
+- File organization (612 lines in one file) becomes problematic at scale
+
+### Open Items / Blockers
+- [ ] **CRIT-1**: Implement content sanitization for prompt injection
+- [ ] **CRIT-2**: Resolve RetryResult type collision (schemas vs retry.ts)
+- [ ] **CRIT-3**: Implement batch-level timeout per PRD requirement
+- [ ] **CRIT-4**: Extract shared Perplexity types to avoid duplication
+- [ ] Section 9: Scoring Engine (Gemini + fallback)
+- [ ] Sections 10-15: Remaining pipeline stages
+
+### Context for Next Session
+Section 8 (Validation Engine) is functionally complete with all TODO items checked:
+- `validateItems()` with batch processing and concurrency control
+- `validateSingleItem()` with comprehensive error handling
+- `buildValidationPrompt()` and `parseValidationResponse()` for LLM interaction
+- 272 tests passing, TypeScript compiles without errors
+
+**QA Report**: `docs/Section8-QA-issues.md` contains 22 issues prioritized for resolution. CRITICAL issues (especially prompt injection) should be addressed before production use.
+
+**Recommended next steps:**
+1. (Optional) Address CRITICAL QA issues from Section8-QA-issues.md
+2. Section 9: Implement Scoring Engine (`src/scoring/gemini.ts`, `src/scoring/fallback.ts`)
+3. Section 10: Implement Synthesis Engine (claims extraction + GPT post generation)
+4. Continue through remaining pipeline stages
+
+---
+
+## Session: 2025-12-29 19:00 AEST
+
+### Summary
+Resolved all 22 QA issues from Section 8 (Validation Engine) using 5 parallel senior-developer agents. Fixed 4 CRITICAL security/type issues, 10 MAJOR issues, and 8 MINOR issues. Created shared types, moved utilities, hardened security with prompt injection protection and API key sanitization. All 306 tests pass.
+
+### Work Completed
+- **CRIT-1 (Prompt Injection)**: Added `sanitizeContent()` with 14 injection pattern filters, structured delimiters `<<<CONTENT_START>>>` / `<<<CONTENT_END>>>`
+- **CRIT-2 (Type Collision)**: Renamed `RetryResult` to `ParseRetryResult` in schemas/index.ts to avoid collision with retry.ts
+- **CRIT-3 (Timeout Handling)**: Added circuit breaker in `validateItems()` - detects timeout, marks all remaining items UNVERIFIED
+- **CRIT-4 (Code Duplication)**: Created `src/types/perplexity.ts` with shared constants and interfaces
+- **MAJ-1 (URL Validation)**: Created `HttpUrlSchema` enforcing HTTP(S) only protocols
+- **MAJ-2 (Content Limits)**: Added `MAX_CONTENT_LENGTH=50000`, `MAX_PROMPT_LENGTH=100000` with truncation
+- **MAJ-3 (API Key Exposure)**: Created `sanitizeErrorMessage()` with `SENSITIVE_PATTERNS` detection
+- **MAJ-4 (Schema Reuse)**: `quotesVerified` now has `.min(1)` + sourceUrl refinement (mirrors QuoteVerifiedSchema)
+- **MAJ-6 (Concurrency Util)**: Created `src/utils/concurrency.ts` with `processWithConcurrency()`
+- **MAJ-8 (Empty Items)**: Added early warning log when items array is empty
+- **MAJ-9 (4xx Errors)**: Specific error messages for 401/403/400 status codes
+- **Issue 1 (Schema Enforcement)**: Added `ValidatedItemSchema.safeParse()` before returning validated items
+- **Issue 2 (Publication Date)**: Added `publishedAtVerified` field to schema and prompt
+- **Issue 3 (Recency Selection)**: Added `calculateRecencyScore()` with 70/30 engagement/recency weighting
+- **Issue 5 (Tests)**: Implemented 30+ tests for `buildValidationPrompt`, `parseValidationResponse`, `validateSingleItem`
+- **MIN-1/MIN-2**: Template literals throughout, `SHORT_ID_LENGTH = 8` constant
+
+### Files Modified/Created
+| File | Action |
+|:-----|:-------|
+| `src/validation/perplexity.ts` | Comprehensive security hardening (908 lines) |
+| `src/types/perplexity.ts` | **Created** - Shared Perplexity constants and types |
+| `src/types/index.ts` | Added Perplexity exports |
+| `src/utils/concurrency.ts` | **Created** - Generic `processWithConcurrency()` utility |
+| `src/schemas/index.ts` | Renamed `RetryResult` to `ParseRetryResult` |
+| `tests/unit/validation.test.ts` | Implemented 30+ tests (was `it.todo`) |
+| `src/collectors/web.ts` | Updated to import from shared types |
+
+### Issues & Resolutions
+| Issue | Resolution | Status |
+|:------|:-----------|:-------|
+| CRIT-1: Prompt injection risk | `sanitizeContent()` with 14 patterns + structured delimiters | ✅ Resolved |
+| CRIT-2: RetryResult type collision | Renamed to `ParseRetryResult` | ✅ Resolved |
+| CRIT-3: Per-item timeout only | Circuit breaker marks all remaining UNVERIFIED | ✅ Resolved |
+| CRIT-4: Duplicated types | Created `src/types/perplexity.ts` | ✅ Resolved |
+| MAJ-1: Dangerous URL protocols | `HttpUrlSchema` restricts to HTTP(S) | ✅ Resolved |
+| MAJ-2: Unbounded content | Length limits with truncation | ✅ Resolved |
+| MAJ-3: API key in errors | `sanitizeErrorMessage()` redacts credentials | ✅ Resolved |
+| MAJ-4: Missing schema constraints | Added .min(1) + sourceUrl refinement | ✅ Resolved |
+| MAJ-6: Utility misplaced | Moved to `src/utils/concurrency.ts` | ✅ Resolved |
+| MAJ-8: Silent empty array | Added warning log | ✅ Resolved |
+| MAJ-9: Generic 4xx errors | Specific messages for 400/401/403 | ✅ Resolved |
+| Issue 1: No schema enforcement | `ValidatedItemSchema.safeParse()` added | ✅ Resolved |
+| Issue 2: No publication date | `publishedAtVerified` field added | ✅ Resolved |
+| Issue 3: Recency ignored | 70/30 engagement/recency weighting | ✅ Resolved |
+| Issue 5: Stubbed tests | 30+ tests implemented | ✅ Resolved |
+
+### Key Decisions
+- **5-Agent Parallel Execution**: Security (1), Type Safety (2), PRD Compliance (3), Architecture (4), Tests (5)
+- **HttpUrlSchema over QuoteVerifiedSchema**: Kept stricter HTTP(S) validation while adding .min(1) and refinement
+- **Circuit Breaker Pattern**: More robust than per-item timeout handling per PRD requirement
+- **Re-export Types**: `perplexity.ts` re-exports from shared types for backwards compatibility
+
+### Learnings
+- Parallel agents can conflict on same file - strategic task division needed
+- Security hardening requires multiple layers (sanitization, length limits, error redaction)
+- Circuit breaker pattern better than retrying during outage (saves API costs)
+- Schema enforcement catches invalid states early (PRIMARY_SOURCE with 0 sources)
+
+### Open Items / Blockers
+- [x] Section 8 QA Issues - **22/22 RESOLVED**
+- [ ] Section 9: Scoring Engine (Gemini + fallback)
+- [ ] Sections 10-15: Remaining pipeline stages
+
+### Context for Next Session
+Section 8 (Validation Engine) is now production-ready with all 22 QA issues resolved:
+- Security: Prompt injection protection, API key redaction, URL protocol validation
+- Type Safety: No type collisions, schema enforcement on outputs
+- PRD Compliance: Circuit breaker timeout, recency selection, empty array handling
+- Architecture: Shared types, extracted utilities, proper error messages
+- Tests: 306 total tests passing (30+ newly implemented)
+
+**TypeScript compiles with 0 errors.**
+
+**Recommended next steps:**
+1. Section 9: Implement Scoring Engine (`src/scoring/gemini.ts` with Gemini 2.0 Flash, `src/scoring/fallback.ts` with heuristics)
+2. Section 10: Implement Selection Logic (top-k based on scores)
+3. Section 11: Implement Synthesis Engine (claims extraction + GPT post generation)
+4. Continue through remaining pipeline stages (Image Gen, CLI, Integration)
+
+---

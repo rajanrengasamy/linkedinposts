@@ -44,6 +44,17 @@ export type {
 } from '../schemas/index.js';
 
 // ============================================
+// Re-export Perplexity API types
+// ============================================
+
+export {
+  PERPLEXITY_API_URL,
+  PERPLEXITY_MODEL,
+  type PerplexityResponse,
+  type PerplexityRequestOptions,
+} from './perplexity.js';
+
+// ============================================
 // Pipeline Configuration
 // ============================================
 

@@ -1,0 +1,169 @@
+{
+  "multiSourceConfirmed": {
+    "id": "chatcmpl-mock-validation-multisource-001",
+    "model": "sonar-reasoning-pro",
+    "created": 1735400100,
+    "object": "chat.completion",
+    "choices": [
+      {
+        "index": 0,
+        "finish_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "{\"verified\":true,\"verificationLevel\":\"MULTISOURCE_CONFIRMED\",\"confidence\":0.85,\"sourcesFound\":[\"https://www.wired.com/story/ai-healthcare-transformation-2025/\",\"https://techcrunch.com/2024/12/15/ai-medical-diagnostics-revolution/\"],\"isPrimarySource\":false,\"notes\":[\"Quote found in 2 independent sources\",\"Author attribution confirmed as Dr. Sarah Chen, Stanford HAI\",\"Content published within last 7 days\"],\"quotesVerified\":[{\"quote\":\"AI will transform healthcare in ways we cannot yet imagine\",\"verified\":true,\"sourceUrl\":\"https://www.wired.com/story/ai-healthcare-transformation-2025/\"}]}"
+        }
+      }
+    ],
+    "citations": [
+      "https://www.wired.com/story/ai-healthcare-transformation-2025/",
+      "https://techcrunch.com/2024/12/15/ai-medical-diagnostics-revolution/"
+    ],
+    "usage": {
+      "prompt_tokens": 512,
+      "completion_tokens": 256,
+      "total_tokens": 768
+    }
+  },
+  "sourceConfirmed": {
+    "id": "chatcmpl-mock-validation-single-002",
+    "model": "sonar-reasoning-pro",
+    "created": 1735400200,
+    "object": "chat.completion",
+    "choices": [
+      {
+        "index": 0,
+        "finish_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "{\"verified\":true,\"verificationLevel\":\"SOURCE_CONFIRMED\",\"confidence\":0.72,\"sourcesFound\":[\"https://www.forbes.com/sites/technology/2024/12/20/enterprise-ai-adoption-trends/\"],\"isPrimarySource\":false,\"notes\":[\"Quote found in 1 reputable source\",\"Forbes article citing interview with Marcus Thompson\",\"Publication date verified as December 2024\"],\"quotesVerified\":[{\"quote\":\"Enterprise AI adoption has reached an inflection point where ROI is finally measurable\",\"verified\":true,\"sourceUrl\":\"https://www.forbes.com/sites/technology/2024/12/20/enterprise-ai-adoption-trends/\"}]}"
+        }
+      }
+    ],
+    "citations": [
+      "https://www.forbes.com/sites/technology/2024/12/20/enterprise-ai-adoption-trends/"
+    ],
+    "usage": {
+      "prompt_tokens": 480,
+      "completion_tokens": 192,
+      "total_tokens": 672
+    }
+  },
+  "primarySource": {
+    "id": "chatcmpl-mock-validation-primary-003",
+    "model": "sonar-reasoning-pro",
+    "created": 1735400300,
+    "object": "chat.completion",
+    "choices": [
+      {
+        "index": 0,
+        "finish_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "{\"verified\":true,\"verificationLevel\":\"PRIMARY_SOURCE\",\"confidence\":0.95,\"sourcesFound\":[\"https://www.linkedin.com/posts/satlonadella_ai-enterprise-innovation-activity-7276543219876543210\"],\"isPrimarySource\":true,\"notes\":[\"Quote found on author's official LinkedIn profile\",\"Primary source verification - direct attribution\",\"Posted by verified account Satya Nadella, CEO Microsoft\"],\"quotesVerified\":[{\"quote\":\"The next decade of computing will be defined by AI agents that work alongside humans\",\"verified\":true,\"sourceUrl\":\"https://www.linkedin.com/posts/satlonadella_ai-enterprise-innovation-activity-7276543219876543210\"}]}"
+        }
+      }
+    ],
+    "citations": [
+      "https://www.linkedin.com/posts/satlonadella_ai-enterprise-innovation-activity-7276543219876543210"
+    ],
+    "usage": {
+      "prompt_tokens": 456,
+      "completion_tokens": 224,
+      "total_tokens": 680
+    }
+  },
+  "unverified": {
+    "id": "chatcmpl-mock-validation-unverified-004",
+    "model": "sonar-reasoning-pro",
+    "created": 1735400400,
+    "object": "chat.completion",
+    "choices": [
+      {
+        "index": 0,
+        "finish_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "{\"verified\":false,\"verificationLevel\":\"UNVERIFIED\",\"confidence\":0.15,\"sourcesFound\":[],\"isPrimarySource\":false,\"notes\":[\"No corroborating sources found for this quote\",\"Author attribution could not be verified\",\"Quote may be paraphrased or misattributed\"],\"quotesVerified\":[{\"quote\":\"Blockchain will revolutionize supply chain management by 2025\",\"verified\":false}]}"
+        }
+      }
+    ],
+    "citations": [],
+    "usage": {
+      "prompt_tokens": 440,
+      "completion_tokens": 128,
+      "total_tokens": 568
+    }
+  },
+  "parseError": {
+    "id": "chatcmpl-mock-validation-error-005",
+    "model": "sonar-reasoning-pro",
+    "created": 1735400500,
+    "object": "chat.completion",
+    "choices": [
+      {
+        "index": 0,
+        "finish_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "I found some information about this quote but let me summarize: {\"verified\": true, \"confidence\": 0.8, incomplete JSON here"
+        }
+      }
+    ],
+    "citations": [
+      "https://example.com/source"
+    ],
+    "usage": {
+      "prompt_tokens": 420,
+      "completion_tokens": 64,
+      "total_tokens": 484
+    }
+  },
+  "batchValidation": {
+    "id": "chatcmpl-mock-validation-batch-006",
+    "model": "sonar-reasoning-pro",
+    "created": 1735400600,
+    "object": "chat.completion",
+    "choices": [
+      {
+        "index": 0,
+        "finish_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "{\"items\":[{\"itemId\":\"11111111-1111-1111-1111-111111111111\",\"verified\":true,\"confidence\":0.92,\"sourcesFound\":[\"https://www.mckinsey.com/capabilities/quantumblack/our-insights/ai-agents-enterprise-2025\",\"https://hai.stanford.edu/news/ai-agents-paradigm-shift\"],\"isPrimarySource\":false,\"notes\":[\"Content verified through multiple authoritative sources\",\"McKinsey and Stanford HAI corroborate the claim\"],\"quotesVerified\":[{\"quote\":\"AI agents are becoming the primary interface for enterprise software\",\"verified\":true,\"sourceUrl\":\"https://www.mckinsey.com/capabilities/quantumblack/our-insights/ai-agents-enterprise-2025\"}]},{\"itemId\":\"22222222-2222-2222-2222-222222222222\",\"verified\":true,\"confidence\":0.88,\"sourcesFound\":[\"https://www.linkedin.com/in/satyanadella/recent-activity/\"],\"isPrimarySource\":true,\"notes\":[\"Content verified from author's official LinkedIn profile\",\"Direct attribution confirmed\"],\"quotesVerified\":[{\"quote\":\"Every company is becoming a technology company\",\"verified\":true,\"sourceUrl\":\"https://www.linkedin.com/in/satyanadella/recent-activity/\"}]},{\"itemId\":\"33333333-3333-3333-3333-333333333333\",\"verified\":false,\"confidence\":0.18,\"sourcesFound\":[],\"isPrimarySource\":false,\"notes\":[\"Could not find corroborating sources\",\"Quote appears to be paraphrased or from unverifiable source\"],\"quotesVerified\":[{\"quote\":\"Quantum computing will replace classical computing by 2030\",\"verified\":false}]}]}"
+        }
+      }
+    ],
+    "citations": [
+      "https://www.mckinsey.com/capabilities/quantumblack/our-insights/ai-agents-enterprise-2025",
+      "https://hai.stanford.edu/news/ai-agents-paradigm-shift",
+      "https://www.linkedin.com/in/satyanadella/recent-activity/"
+    ],
+    "usage": {
+      "prompt_tokens": 1024,
+      "completion_tokens": 512,
+      "total_tokens": 1536
+    }
+  },
+  "emptyResponse": {
+    "id": "chatcmpl-mock-validation-empty-007",
+    "model": "sonar-reasoning-pro",
+    "created": 1735400700,
+    "object": "chat.completion",
+    "choices": [
+      {
+        "index": 0,
+        "finish_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": ""
+        }
+      }
+    ],
+    "citations": [],
+    "usage": {
+      "prompt_tokens": 400,
+      "completion_tokens": 0,
+      "total_tokens": 400
+    }
+  }
+}

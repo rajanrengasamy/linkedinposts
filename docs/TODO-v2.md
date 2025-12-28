@@ -502,20 +502,20 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
 **File: `src/validation/perplexity.ts`**
 
 ### 8.1 Core Validation
-- [ ] Implement `validateItems(items: RawItem[], config)`:
-  - [ ] If config.skipValidation, return items as UNVERIFIED ValidatedItems
-  - [ ] Cap items for validation (only top N by engagement/recency)
-  - [ ] Batch items (config.validationBatchSize)
-  - [ ] For each batch, call Perplexity to verify:
-    - [ ] Quote authenticity
-    - [ ] Author attribution
-    - [ ] Publication date
-  - [ ] Assign verification level per item
-  - [ ] Validate against ValidatedItemSchema
-  - [ ] Return `ValidatedItem[]`
+- [x] Implement `validateItems(items: RawItem[], config)`:
+  - [x] If config.skipValidation, return items as UNVERIFIED ValidatedItems
+  - [x] Cap items for validation (only top N by engagement/recency)
+  - [x] Batch items (config.validationBatchSize)
+  - [x] For each batch, call Perplexity to verify:
+    - [x] Quote authenticity
+    - [x] Author attribution
+    - [x] Publication date
+  - [x] Assign verification level per item
+  - [x] Validate against ValidatedItemSchema
+  - [x] Return `ValidatedItem[]`
 
 ### 8.2 Verification Level Assignment
-- [ ] Implement `assignVerificationLevel(verificationResult)`:
+- [x] Implement `assignVerificationLevel(verificationResult)`:
   ```typescript
   if (foundInPrimarySource) return 'PRIMARY_SOURCE';
   if (sourcesFound.length >= 2) return 'MULTISOURCE_CONFIRMED';
@@ -524,19 +524,19 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
   ```
 
 ### 8.3 Failure Handling
-- [ ] If Perplexity times out:
-  - [ ] Mark all items as UNVERIFIED
-  - [ ] Set confidence to 0
-  - [ ] Log warning
-  - [ ] Continue pipeline
-- [ ] If parse error:
-  - [ ] Retry once with fix-JSON prompt
-  - [ ] If still fails, mark UNVERIFIED
+- [x] If Perplexity times out:
+  - [x] Mark all items as UNVERIFIED
+  - [x] Set confidence to 0
+  - [x] Log warning
+  - [x] Continue pipeline
+- [x] If parse error:
+  - [x] Retry once with fix-JSON prompt
+  - [x] If still fails, mark UNVERIFIED
 
 ### 8.4 Concurrency & Batching
-- [ ] Respect concurrency limit (3 concurrent Perplexity requests)
-- [ ] Process batches sequentially to manage rate limits
-- [ ] Log progress: "Validating batch 1/5..."
+- [x] Respect concurrency limit (3 concurrent Perplexity requests)
+- [x] Process batches sequentially to manage rate limits
+- [x] Log progress: "Validating batch 1/5..."
 
 ---
 
@@ -875,10 +875,14 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
   - [ ] Test Twitter collector with mocked ScrapeCreators
   - [ ] Test collector orchestrator with partial failures
 
-- [ ] `validation.test.ts`:
-  - [ ] Test validation with mocked Perplexity
-  - [ ] Test verification level assignment
-  - [ ] Test timeout handling
+- [x] `validation.test.ts`:
+  - [x] Test verification level assignment (assignVerificationLevel)
+  - [x] Test createUnverifiedValidation helper
+  - [x] Test extractContent and extractCitations
+  - [x] Test mock fixtures for all verification scenarios
+  - [x] Test VERIFICATION_BOOSTS constants
+  - [ ] Test validateItems with mocked Perplexity (todo - awaiting Section 8 impl)
+  - [ ] Test timeout handling (todo - awaiting Section 8 impl)
 
 - [ ] `scoring.test.ts`:
   - [ ] Test scoring with mocked Gemini

@@ -157,7 +157,7 @@ prompt: |
 After all 5 agents complete:
 
 1. Collect all findings from each agent
-2. Create `docs/Section$1-QA-issues.md` with:
+2. Create `docs/Section$1-QA-issuesClaude.md` with:
    - Executive summary (total issues by severity)
    - Section for each reviewer's findings
    - Prioritized action items
