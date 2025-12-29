@@ -55,6 +55,25 @@ export {
 } from './perplexity.js';
 
 // ============================================
+// Re-export Image Generation types
+// ============================================
+
+export {
+  // Constants
+  IMAGE_MODEL,
+  IMAGE_MODEL_FALLBACK,
+  RESOLUTION_TO_IMAGE_SIZE,
+  // Types
+  type ImageSizeOption,
+  type ImageGenerationConfig,
+  type GenerateInfographicOptions,
+  type GeminiImageResponse,
+} from './image.js';
+
+// Re-export IMAGE_COSTS from authoritative source (utils/cost.ts)
+export { IMAGE_COSTS } from '../utils/cost.js';
+
+// ============================================
 // Pipeline Configuration
 // ============================================
 

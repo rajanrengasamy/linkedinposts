@@ -55,6 +55,7 @@ export {
   CostBreakdownSchema,
   SynthesisMetadataSchema,
   SynthesisResultSchema,
+  GPTSynthesisResponseSchema,
   createEmptyCostBreakdown,
   calculateTotalCost,
   type InfographicStyle,
@@ -64,6 +65,7 @@ export {
   type CostBreakdown,
   type SynthesisMetadata,
   type SynthesisResult,
+  type GPTSynthesisResponse,
 } from './synthesisResult.js';
 
 // SourceReference - provenance tracking
@@ -109,6 +111,64 @@ export type ValidationResult<T> =
 export type ParseResult<T> =
   | { success: true; data: T }
   | { success: false; error: string };
+
+// ============================================
+// Parse Error Classes (MAJ-16)
+// ============================================
+
+/**
+ * Base class for parse errors.
+ * Allows distinguishing between fixable and unfixable errors.
+ */
+export class ParseError extends Error {
+  /** Whether this error might be fixed by re-prompting the model */
+  readonly isFixable: boolean;
+
+  constructor(message: string, isFixable: boolean) {
+    super(message);
+    this.name = 'ParseError';
+    this.isFixable = isFixable;
+  }
+}
+
+/**
+ * JSON syntax error - potentially fixable by re-prompting.
+ * Thrown when the model returns invalid JSON syntax.
+ */
+export class JsonParseError extends ParseError {
+  constructor(message: string) {
+    super(message, true);
+    this.name = 'JsonParseError';
+  }
+}
+
+/**
+ * Schema validation error - NOT fixable by re-prompting.
+ * Thrown when JSON is valid but doesn't match expected schema.
+ * Re-prompting won't help because the model understood the format but
+ * returned wrong structure or types.
+ */
+export class SchemaValidationError extends ParseError {
+  readonly zodError: z.ZodError;
+
+  constructor(message: string, zodError: z.ZodError) {
+    super(message, false);
+    this.name = 'SchemaValidationError';
+    this.zodError = zodError;
+  }
+}
+
+/**
+ * Check if an error is a fixable parse error.
+ * Use this to decide whether to retry with a fix prompt.
+ */
+export function isFixableParseError(error: unknown): boolean {
+  if (error instanceof ParseError) {
+    return error.isFixable;
+  }
+  // Unknown errors are assumed unfixable
+  return false;
+}
 
 // ============================================
 // Validation Helpers
@@ -160,7 +220,7 @@ export function tryValidate<T>(
  *
  * @param text - Raw model response text
  * @returns Parsed JSON object
- * @throws Error if parsing fails
+ * @throws JsonParseError if parsing fails (fixable by re-prompting)
  */
 export function parseModelResponse<T = unknown>(text: string): T {
   let cleaned = text.trim();
@@ -176,7 +236,7 @@ export function parseModelResponse<T = unknown>(text: string): T {
   // Try to find JSON object or array boundaries
   const jsonStart = cleaned.search(/[\[{]/);
   if (jsonStart === -1) {
-    throw new Error('No JSON object or array found in response');
+    throw new JsonParseError('No JSON object or array found in response');
   }
 
   // Find matching end bracket
@@ -221,7 +281,7 @@ export function parseModelResponse<T = unknown>(text: string): T {
   }
 
   if (jsonEnd === -1) {
-    throw new Error('Unclosed JSON structure in response');
+    throw new JsonParseError('Unclosed JSON structure in response');
   }
 
   const jsonStr = cleaned.slice(jsonStart, jsonEnd + 1);
@@ -230,7 +290,7 @@ export function parseModelResponse<T = unknown>(text: string): T {
     return JSON.parse(jsonStr) as T;
   } catch (e) {
     const error = e as Error;
-    throw new Error(`Failed to parse JSON: ${error.message}`);
+    throw new JsonParseError(`Failed to parse JSON: ${error.message}`);
   }
 }
 

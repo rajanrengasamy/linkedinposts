@@ -1,0 +1,247 @@
+{
+  "valid": {
+    "schemaVersion": "1.0.0",
+    "generatedAt": "2025-12-29T10:00:00Z",
+    "prompt": "AI trends in healthcare",
+    "linkedinPost": "The Future of AI in Healthcare!\n\nKey insights:\n\n1. \"AI diagnostics achieving 95% accuracy\" - Dr. Jane Smith (https://example.com/ai)\n\n2. Healthcare AI market: $45 billion by 2026\n\nWhat's your take?\n\n#HealthcareAI #DigitalHealth #FutureOfMedicine #AIInnovation #HealthTech",
+    "keyQuotes": [
+      {
+        "quote": "AI diagnostics achieving 95% accuracy",
+        "author": "Dr. Jane Smith",
+        "sourceUrl": "https://example.com/ai",
+        "verificationLevel": "PRIMARY_SOURCE"
+      }
+    ],
+    "infographicBrief": {
+      "title": "AI in Healthcare",
+      "keyPoints": ["95% diagnostic accuracy", "$45B market by 2026", "Revolutionizing patient care"],
+      "suggestedStyle": "data-heavy",
+      "colorScheme": "blue-professional"
+    },
+    "factCheckSummary": {
+      "totalSourcesUsed": 3,
+      "verifiedQuotes": 1,
+      "unverifiedClaims": 0,
+      "primarySources": 1,
+      "warnings": []
+    },
+    "metadata": {
+      "sourcesUsed": 3,
+      "processingTimeMs": 2500,
+      "estimatedCost": {
+        "perplexity": 0.05,
+        "gemini": 0.02,
+        "openai": 0.15,
+        "nanoBanana": 0,
+        "total": 0.22
+      }
+    }
+  },
+  "validWithMultipleQuotes": {
+    "linkedinPost": "Leadership in the AI Era\n\n\"The future belongs to those who embrace AI\" - Satya Nadella (https://microsoft.com/blog)\n\n\"AI will augment human capabilities, not replace them\" - Dr. Fei-Fei Li (https://stanford.edu/ai)\n\n85% of executives say AI is critical to their strategy.\n\nAre you ready?\n\n#AILeadership #FutureOfWork #DigitalTransformation",
+    "keyQuotes": [
+      {
+        "quote": "The future belongs to those who embrace AI",
+        "author": "Satya Nadella",
+        "sourceUrl": "https://microsoft.com/blog",
+        "verificationLevel": "PRIMARY_SOURCE"
+      },
+      {
+        "quote": "AI will augment human capabilities, not replace them",
+        "author": "Dr. Fei-Fei Li",
+        "sourceUrl": "https://stanford.edu/ai",
+        "verificationLevel": "MULTISOURCE_CONFIRMED"
+      }
+    ],
+    "infographicBrief": {
+      "title": "AI Leadership Insights",
+      "keyPoints": ["Embrace AI for success", "AI augments humans", "85% executives prioritize AI"],
+      "suggestedStyle": "quote-focused"
+    },
+    "factCheckSummary": {
+      "totalSourcesUsed": 4,
+      "verifiedQuotes": 2,
+      "unverifiedClaims": 0,
+      "primarySources": 2,
+      "warnings": []
+    }
+  },
+  "tooLong": {
+    "linkedinPost": "This is a very long post that exceeds the maximum allowed length for LinkedIn posts. It contains extensive content that goes well beyond the 3000 character limit specified in the schema. The content continues with more text about various topics including AI, machine learning, data science, and technology trends. This is all placeholder content designed to test the validation of post length constraints. We need to ensure that posts exceeding 3000 characters are properly identified and handled by the parser. The validation should catch this error and either truncate the content or throw an appropriate error message. More filler content follows to ensure we exceed the limit by a significant margin. Additional text about technology innovation, digital transformation, and the future of work continues here. We discuss topics like artificial intelligence, automation, robotics, and the impact on various industries. The healthcare sector, financial services, manufacturing, retail, and many other areas are experiencing rapid digital transformation. Companies must adapt to survive in this new era. Those who embrace technology will thrive while those who resist will fall behind. This is the reality of our modern business environment. The pace of change is accelerating and organizations need to be agile and responsive to market demands. Investment in technology infrastructure, talent development, and innovation processes is critical for long-term success. Leaders must balance short-term pressures with long-term strategic thinking. This requires vision, courage, and the ability to execute complex transformation programs. The journey is challenging but the rewards are significant for those who get it right. Let us continue with even more content to really push past the 3000 character boundary. Technology is reshaping every aspect of our lives from how we work to how we communicate to how we access information and entertainment. The digital revolution shows no signs of slowing down as new breakthroughs in AI continue to emerge. Quantum computing promises to unlock even greater computational power. 5G networks enable faster and more reliable connectivity. Edge computing brings processing closer to where data is generated. These technologies combine to create unprecedented opportunities for innovation. Organizations that harness these capabilities effectively will gain significant competitive advantages. The future is being written now and we all have a role to play in shaping it for the better. This concludes our extremely long post that should definitely exceed the 3000 character limit for testing purposes. Additional padding text to ensure we are well over the limit with plenty of margin for testing the validation logic. Here we add even more text to guarantee we exceed the limit. The world of technology continues to evolve at a rapid pace. We are seeing incredible advances in artificial intelligence, including large language models that can understand and generate human-like text. These models are being applied across industries from healthcare to finance to education. The implications are profound and far-reaching. We must consider both the benefits and the risks of these powerful technologies. Responsible AI development is essential to ensure these systems are safe, fair, and beneficial to society.",
+    "keyQuotes": [],
+    "infographicBrief": {
+      "title": "Test",
+      "keyPoints": ["Point 1"],
+      "suggestedStyle": "minimal"
+    },
+    "factCheckSummary": {
+      "totalSourcesUsed": 0,
+      "verifiedQuotes": 0,
+      "unverifiedClaims": 0,
+      "primarySources": 0,
+      "warnings": []
+    }
+  },
+  "missingSourceUrl": {
+    "linkedinPost": "A test post with quotes.\n\n\"This quote has no source\" - Unknown Author\n\n#Test #NoSource #Error",
+    "keyQuotes": [
+      {
+        "quote": "This quote has no source",
+        "author": "Unknown Author",
+        "verificationLevel": "SOURCE_CONFIRMED"
+      }
+    ],
+    "infographicBrief": {
+      "title": "Test",
+      "keyPoints": ["Point 1"],
+      "suggestedStyle": "minimal"
+    },
+    "factCheckSummary": {
+      "totalSourcesUsed": 1,
+      "verifiedQuotes": 0,
+      "unverifiedClaims": 1,
+      "primarySources": 0,
+      "warnings": ["Quote missing source URL"]
+    }
+  },
+  "emptySourceUrl": {
+    "linkedinPost": "A test post.\n\n#Test #Empty",
+    "keyQuotes": [
+      {
+        "quote": "This quote has empty sourceUrl",
+        "author": "Test Author",
+        "sourceUrl": "",
+        "verificationLevel": "SOURCE_CONFIRMED"
+      }
+    ],
+    "infographicBrief": {
+      "title": "Test",
+      "keyPoints": ["Point"],
+      "suggestedStyle": "minimal"
+    },
+    "factCheckSummary": {
+      "totalSourcesUsed": 0,
+      "verifiedQuotes": 0,
+      "unverifiedClaims": 1,
+      "primarySources": 0,
+      "warnings": []
+    }
+  },
+  "tooFewHashtags": {
+    "linkedinPost": "A short post with only two hashtags.\n\n#AI #Tech",
+    "keyQuotes": [],
+    "infographicBrief": {
+      "title": "Test",
+      "keyPoints": ["Point 1"],
+      "suggestedStyle": "minimal"
+    },
+    "factCheckSummary": {
+      "totalSourcesUsed": 0,
+      "verifiedQuotes": 0,
+      "unverifiedClaims": 0,
+      "primarySources": 0,
+      "warnings": []
+    }
+  },
+  "tooManyHashtags": {
+    "linkedinPost": "A post with too many hashtags.\n\n#AI #Tech #Future #Innovation #Digital #Transformation #Leadership #Strategy #Growth #Success",
+    "keyQuotes": [],
+    "infographicBrief": {
+      "title": "Test",
+      "keyPoints": ["Point 1"],
+      "suggestedStyle": "minimal"
+    },
+    "factCheckSummary": {
+      "totalSourcesUsed": 0,
+      "verifiedQuotes": 0,
+      "unverifiedClaims": 0,
+      "primarySources": 0,
+      "warnings": []
+    }
+  },
+  "withWarnings": {
+    "linkedinPost": "AI insights for 2025.\n\n\"Proceed with caution\" - Analyst (https://example.com/report)\n\n#AI #Caution #Future",
+    "keyQuotes": [
+      {
+        "quote": "Proceed with caution",
+        "author": "Analyst",
+        "sourceUrl": "https://example.com/report",
+        "verificationLevel": "SOURCE_CONFIRMED"
+      }
+    ],
+    "infographicBrief": {
+      "title": "AI Caution",
+      "keyPoints": ["Be careful", "Validate claims"],
+      "suggestedStyle": "minimal"
+    },
+    "factCheckSummary": {
+      "totalSourcesUsed": 1,
+      "verifiedQuotes": 1,
+      "unverifiedClaims": 0,
+      "primarySources": 0,
+      "warnings": [
+        "Some claims could not be independently verified",
+        "Consider additional fact-checking for sensitive topics"
+      ]
+    }
+  },
+  "withCodeFence": "```json\n{\"linkedinPost\": \"Test post with code fence.\\n\\n#Test #CodeFence #JSON\", \"keyQuotes\": [], \"infographicBrief\": {\"title\": \"Test\", \"keyPoints\": [\"Parsed from code fence\"], \"suggestedStyle\": \"minimal\"}, \"factCheckSummary\": {\"totalSourcesUsed\": 0, \"verifiedQuotes\": 0, \"unverifiedClaims\": 0, \"primarySources\": 0, \"warnings\": []}}\n```",
+  "withLeadingText": "Here is your LinkedIn post:\n\n{\"linkedinPost\": \"Test post with leading text.\\n\\n#Test #LeadingText #Parse\", \"keyQuotes\": [], \"infographicBrief\": {\"title\": \"Test\", \"keyPoints\": [\"Parsed despite leading text\"], \"suggestedStyle\": \"minimal\"}, \"factCheckSummary\": {\"totalSourcesUsed\": 0, \"verifiedQuotes\": 0, \"unverifiedClaims\": 0, \"primarySources\": 0, \"warnings\": []}}",
+  "withTrailingText": "{\"linkedinPost\": \"Test post with trailing text.\\n\\n#Test #TrailingText #Parse\", \"keyQuotes\": [], \"infographicBrief\": {\"title\": \"Test\", \"keyPoints\": [\"Parsed despite trailing text\"], \"suggestedStyle\": \"minimal\"}, \"factCheckSummary\": {\"totalSourcesUsed\": 0, \"verifiedQuotes\": 0, \"unverifiedClaims\": 0, \"primarySources\": 0, \"warnings\": []}}\n\nI hope this helps! Let me know if you need any changes.",
+  "malformedJson": "{\"linkedinPost\": \"Broken",
+  "missingFields": {
+    "linkedinPost": "Only the post is present"
+  },
+  "invalidStyle": {
+    "linkedinPost": "Test post.\n\n#Test #Style #Invalid",
+    "keyQuotes": [],
+    "infographicBrief": {
+      "title": "Test",
+      "keyPoints": ["Point"],
+      "suggestedStyle": "invalid-style-name"
+    },
+    "factCheckSummary": {
+      "totalSourcesUsed": 0,
+      "verifiedQuotes": 0,
+      "unverifiedClaims": 0,
+      "primarySources": 0,
+      "warnings": []
+    }
+  },
+  "allVerificationLevels": {
+    "linkedinPost": "Comprehensive verification test.\n\n\"Primary source quote\" (https://primary.com)\n\"Multi-source quote\" (https://multi.com)\n\"Single source quote\" (https://single.com)\n\n#Test #Verification #All",
+    "keyQuotes": [
+      {
+        "quote": "Primary source quote",
+        "author": "Primary Author",
+        "sourceUrl": "https://primary.com",
+        "verificationLevel": "PRIMARY_SOURCE"
+      },
+      {
+        "quote": "Multi-source quote",
+        "author": "Multi Author",
+        "sourceUrl": "https://multi.com",
+        "verificationLevel": "MULTISOURCE_CONFIRMED"
+      },
+      {
+        "quote": "Single source quote",
+        "author": "Single Author",
+        "sourceUrl": "https://single.com",
+        "verificationLevel": "SOURCE_CONFIRMED"
+      }
+    ],
+    "infographicBrief": {
+      "title": "Verification Levels",
+      "keyPoints": ["Primary sources", "Multi-source verified", "Single source confirmed"],
+      "suggestedStyle": "data-heavy",
+      "colorScheme": "green-trust"
+    },
+    "factCheckSummary": {
+      "totalSourcesUsed": 3,
+      "verifiedQuotes": 3,
+      "unverifiedClaims": 0,
+      "primarySources": 1,
+      "warnings": []
+    }
+  }
+}

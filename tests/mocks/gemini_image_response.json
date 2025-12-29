@@ -1,0 +1,136 @@
+{
+  "validImageResponse": {
+    "candidates": [
+      {
+        "content": {
+          "parts": [
+            {
+              "inlineData": {
+                "mimeType": "image/png",
+                "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+              }
+            }
+          ]
+        },
+        "finishReason": "STOP"
+      }
+    ]
+  },
+  "emptyResponse": {
+    "candidates": []
+  },
+  "noCandidatesResponse": {},
+  "textOnlyResponse": {
+    "candidates": [
+      {
+        "content": {
+          "parts": [
+            {
+              "text": "I apologize, but I cannot generate an image for this request."
+            }
+          ]
+        },
+        "finishReason": "STOP"
+      }
+    ]
+  },
+  "multiplePartsResponse": {
+    "candidates": [
+      {
+        "content": {
+          "parts": [
+            {
+              "text": "Here is the infographic you requested:"
+            },
+            {
+              "inlineData": {
+                "mimeType": "image/png",
+                "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+              }
+            },
+            {
+              "text": "Let me know if you need any changes."
+            }
+          ]
+        },
+        "finishReason": "STOP"
+      }
+    ]
+  },
+  "blockedResponse": {
+    "promptFeedback": {
+      "blockReason": "SAFETY"
+    }
+  },
+  "emptyPartsResponse": {
+    "candidates": [
+      {
+        "content": {
+          "parts": []
+        },
+        "finishReason": "STOP"
+      }
+    ]
+  },
+  "multipleCandidatesResponse": {
+    "candidates": [
+      {
+        "content": {
+          "parts": [
+            {
+              "text": "First candidate without image"
+            }
+          ]
+        },
+        "finishReason": "STOP"
+      },
+      {
+        "content": {
+          "parts": [
+            {
+              "inlineData": {
+                "mimeType": "image/png",
+                "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+              }
+            }
+          ]
+        },
+        "finishReason": "STOP"
+      }
+    ]
+  },
+  "noContentResponse": {
+    "candidates": [
+      {
+        "finishReason": "STOP"
+      }
+    ]
+  },
+  "jpegImageResponse": {
+    "candidates": [
+      {
+        "content": {
+          "parts": [
+            {
+              "inlineData": {
+                "mimeType": "image/jpeg",
+                "data": "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPwA="
+              }
+            }
+          ]
+        },
+        "finishReason": "STOP"
+      }
+    ]
+  },
+  "finishReasonError": {
+    "candidates": [
+      {
+        "content": {
+          "parts": []
+        },
+        "finishReason": "ERROR"
+      }
+    ]
+  }
+}

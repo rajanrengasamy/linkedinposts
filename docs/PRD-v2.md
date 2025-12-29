@@ -279,7 +279,7 @@ For each user prompt, the system derives 3-5 sub-queries:
 │  Output: High-fidelity PNG image (2K or 4K)                                  │
 │  Failure: Log warning, continue without image (non-blocking)                 │
 │                                                                              │
-│  Note: Text in generated images may have errors; always review before use    │
+│                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼

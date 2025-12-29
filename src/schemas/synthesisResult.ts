@@ -148,6 +148,29 @@ export const SynthesisResultSchema = z.object({
 export type SynthesisResult = z.infer<typeof SynthesisResultSchema>;
 
 /**
+ * GPT Response Schema - Partial schema for validating raw GPT output.
+ *
+ * CODEX-CRIT-1: The full SynthesisResultSchema requires a non-empty prompt,
+ * but GPT doesn't return the prompt - the orchestrator adds it later.
+ * This partial schema validates just the GPT response fields.
+ */
+export const GPTSynthesisResponseSchema = z.object({
+  /** Generated LinkedIn post (max 3000 chars) */
+  linkedinPost: z.string().min(1).max(LINKEDIN_POST_MAX_LENGTH),
+
+  /** Key quotes used in the post, each with source URL */
+  keyQuotes: z.array(KeyQuoteSchema),
+
+  /** Brief for infographic generation */
+  infographicBrief: InfographicBriefSchema,
+
+  /** Fact-check summary for transparency */
+  factCheckSummary: FactCheckSummarySchema,
+});
+
+export type GPTSynthesisResponse = z.infer<typeof GPTSynthesisResponseSchema>;
+
+/**
  * Create an empty cost breakdown
  */
 export function createEmptyCostBreakdown(): CostBreakdown {

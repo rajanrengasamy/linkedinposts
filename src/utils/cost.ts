@@ -37,8 +37,8 @@ export const TOKEN_COSTS = {
  * Image generation costs
  */
 export const IMAGE_COSTS: Record<ImageResolution, number> = {
-  '2k': 0.139, // Nano Banana Pro 2K
-  '4k': 0.24, // Nano Banana Pro 4K
+  '2k': 0.134, // Nano Banana Pro 2K (~1120 tokens)
+  '4k': 0.24, // Nano Banana Pro 4K (~2000 tokens)
 };
 
 // ============================================

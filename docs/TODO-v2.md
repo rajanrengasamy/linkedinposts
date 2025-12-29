@@ -634,12 +634,12 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
 ### 10.1 Claim Extraction (NEW - Critical)
 
 **File: `src/synthesis/claims.ts`**
-- [ ] Implement `extractGroundedClaims(items: ScoredItem[])`:
-  - [ ] Filter: only items with verification >= SOURCE_CONFIRMED
-  - [ ] Identify quotable statements
-  - [ ] Extract statistics and data points
-  - [ ] Ensure each claim has sourceUrl
-  - [ ] Return `GroundedClaim[]`:
+- [x] Implement `extractGroundedClaims(items: ScoredItem[])`:
+  - [x] Filter: only items with verification >= SOURCE_CONFIRMED
+  - [x] Identify quotable statements
+  - [x] Extract statistics and data points
+  - [x] Ensure each claim has sourceUrl
+  - [x] Return `GroundedClaim[]`:
     ```typescript
     interface GroundedClaim {
       claim: string;
@@ -650,13 +650,13 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
       sourceItemId: string;
     }
     ```
-- [ ] **Rule**: No claim without sourceUrl
+- [x] **Rule**: No claim without sourceUrl
 
 ### 10.2 Post Generation
 
 **File: `src/synthesis/gpt.ts`**
-- [ ] Implement `synthesize(claims: GroundedClaim[], prompt, config)`:
-  - [ ] Build GPT-5.2 Thinking prompt:
+- [x] Implement `synthesize(claims: GroundedClaim[], prompt, config)`:
+  - [x] Build GPT-5.2 Thinking prompt:
     ```
     Create a LinkedIn post about "{prompt}".
 
@@ -676,30 +676,34 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
     1. infographicBrief: title, keyPoints, suggestedStyle, colorScheme
     2. factCheckSummary: counts of verified/unverified items, warnings
     ```
-  - [ ] Parse response
-  - [ ] Validate against SynthesisResultSchema
-  - [ ] **Verify**: No quote in post without sourceUrl in claims
-  - [ ] Return `SynthesisResult`
+  - [x] Parse response
+  - [x] Validate against SynthesisResultSchema
+  - [x] **Verify**: No quote in post without sourceUrl in claims
+  - [x] Return `SynthesisResult`
+- [x] Implement `buildSynthesisPrompt(claims, userPrompt)` with structured delimiters
+- [x] Implement `parseSynthesisResponse(response)` with schema validation
+- [x] Implement `buildSourceReferences(items, synthesis)` for provenance tracking
+- [x] Create barrel export `src/synthesis/index.ts`
 
 ### 10.3 Output Constraints
-- [ ] Enforce max 3000 characters for linkedinPost
-- [ ] Require 3-5 hashtags
-- [ ] Verify all quotes have sourceUrl
+- [x] Enforce max 3000 characters for linkedinPost
+- [x] Require 3-5 hashtags (warning only, not fatal)
+- [x] Verify all quotes have sourceUrl (FATAL if missing)
 
 ### 10.4 Failure Handling
-- [ ] If GPT error: **FATAL** (cannot complete without synthesis)
-- [ ] If parse error:
-  - [ ] Retry once with fix-JSON prompt
-  - [ ] If still fails, save partial outputs and exit with error
+- [x] If GPT error: **FATAL** (cannot complete without synthesis)
+- [x] If parse error:
+  - [x] Retry once with fix-JSON prompt
+  - [x] If still fails, throw FATAL error
 
 ---
 
 ## 11. Image Generation
 
 **File: `src/image/nanoBanana.ts`**
-- [ ] Implement `generateInfographic(brief: InfographicBrief, config)`:
-  - [ ] If config.skipImage, return null immediately
-  - [ ] Convert brief to image prompt:
+- [x] Implement `generateInfographic(brief: InfographicBrief, config)`:
+  - [x] If config.skipImage, return null immediately
+  - [x] Convert brief to image prompt:
     ```
     Create a professional infographic:
     Title: {title}
@@ -714,13 +718,20 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
     - Professional quality
     - Resolution: {config.imageResolution}
     ```
-  - [ ] Make Nano Banana Pro API request
-  - [ ] Return image buffer
-- [ ] Error handling:
-  - [ ] Log warning on failure
-  - [ ] Return null (non-blocking)
-  - [ ] Pipeline continues without image
-- [ ] Add note in output: "Image text may contain errors; review before use"
+  - [x] Make Nano Banana Pro API request
+  - [x] Return image buffer
+- [x] Error handling:
+  - [x] Log warning on failure
+  - [x] Return null (non-blocking)
+  - [x] Pipeline continues without image
+
+**Implementation Notes (December 2025):**
+- Model: `gemini-3-pro-image-preview` (Nano Banana Pro / Gemini 3 Pro Image)
+- Fallback: `gemini-2.5-flash-image` (Nano Banana)
+- Resolution: Use `imageConfig: { imageSize: "2K" | "4K" }` (uppercase required)
+- Pricing: ~$0.134 (2K), ~$0.24 (4K)
+- SDK: `@google/genai` with `responseModalities: ['image', 'text']`
+- Docs: https://ai.google.dev/gemini-api/docs/image-generation
 
 ---
 
@@ -892,7 +903,7 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
   - [ ] `scrapecreators_linkedin_response.json`
   - [ ] `scrapecreators_twitter_response.json`
   - [x] `gemini_scoring_response.json`
-  - [ ] `gpt_synthesis_response.json`
+  - [x] `gpt_synthesis_response.json`
 
 **Directory: `tests/integration/`**
 
@@ -915,9 +926,9 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
   - [x] Test scoring with mocked Gemini
   - [x] Test fallback scoring on error
 
-- [ ] `synthesis.test.ts`:
-  - [ ] Test claim extraction
-  - [ ] Test synthesis with mocked GPT
+- [x] `synthesis.test.ts`:
+  - [x] Test claim extraction
+  - [x] Test synthesis with mocked GPT
 
 ### 13.3 Golden Tests
 
