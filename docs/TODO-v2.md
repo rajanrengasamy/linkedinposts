@@ -545,10 +545,10 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
 ### 9.1 Gemini Scoring
 
 **File: `src/scoring/gemini.ts`**
-- [ ] Implement `scoreItems(items: ValidatedItem[], prompt, config)`:
-  - [ ] If config.skipScoring, use fallback scoring
-  - [ ] Batch items (config.scoringBatchSize)
-  - [ ] Build Gemini prompt requesting JSON output:
+- [x] Implement `scoreItems(items: ValidatedItem[], prompt, config)`:
+  - [x] If config.skipScoring, use fallback scoring
+  - [x] Batch items (config.scoringBatchSize)
+  - [x] Build Gemini prompt requesting JSON output:
     ```
     Score each item 0-100 on:
     - relevance: How relevant to "{prompt}"
@@ -558,18 +558,18 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
 
     Return JSON array with id, scores, and brief reasoning.
     ```
-  - [ ] Parse and validate response against ScoresSchema
-  - [ ] Calculate weighted overall:
+  - [x] Parse and validate response against ScoresSchema
+  - [x] Calculate weighted overall:
     ```typescript
     overall = (relevance * 0.35) + (authenticity * 0.30) +
               (recency * 0.20) + (engagementPotential * 0.15)
     ```
-  - [ ] Sort by overall descending
-  - [ ] Assign rank
-  - [ ] Return top N as `ScoredItem[]`
+  - [x] Sort by overall descending
+  - [x] Assign rank
+  - [x] Return top N as `ScoredItem[]`
 
 ### 9.2 Authenticity Score Boost
-- [ ] Apply verification level boost to base authenticity:
+- [x] Apply verification level boost to base authenticity:
   ```typescript
   const boost = {
     'UNVERIFIED': 0,
@@ -583,22 +583,49 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
 ### 9.3 Fallback Scoring
 
 **File: `src/scoring/fallback.ts`**
-- [ ] Implement `fallbackScore(items: ValidatedItem[])`:
-  - [ ] Use heuristic:
+- [x] Implement `fallbackScore(items: ValidatedItem[])`:
+  - [x] Use heuristic:
     ```typescript
     overall = (recencyScore * 0.5) + (engagementScore * 0.5);
     ```
-  - [ ] recencyScore: Based on publishedAt (newer = higher)
-  - [ ] engagementScore: Normalize engagement metrics
-  - [ ] Sort and rank
-  - [ ] Return `ScoredItem[]`
-- [ ] Use when Gemini fails or --skip-scoring
+  - [x] recencyScore: Based on publishedAt (newer = higher)
+  - [x] engagementScore: Normalize engagement metrics
+  - [x] Sort and rank
+  - [x] Return `ScoredItem[]`
+- [x] Use when Gemini fails or --skip-scoring
 
 ### 9.4 Failure Handling
-- [ ] If Gemini error: Use fallback scoring
-- [ ] If parse error:
-  - [ ] Retry once with fix-JSON prompt
-  - [ ] If still fails, use fallback
+- [x] If Gemini error: Use fallback scoring
+- [x] If parse error:
+  - [x] Retry once with fix-JSON prompt
+  - [x] If still fails, use fallback
+
+### 9.5 QA Hardening (Section9-QA-issuesCodex.md)
+
+**CRITICAL Issues (6 Fixed):**
+- [x] **CRIT-1**: Implement timeout enforcement with Promise.race pattern in `makeGeminiRequest()`
+- [x] **CRIT-2**: Add Gemini response ID validation - throws error when response missing input IDs
+- [x] **CRIT-3**: Add top-N truncation - returns `config.topScored` items (default 50)
+- [x] **CRIT-4**: Document fallback authenticity baseline (intentionally conservative at 25)
+- [x] **CRIT-5**: Create barrel export `src/scoring/index.ts`
+- [x] **CRIT-6**: Sanitize full error objects with `createSanitizedError()` (not just message)
+
+**MAJOR Issues (10 Fixed):**
+- [x] **MAJ-1**: Document SCORING_WEIGHTS behavior (fixed by design, documented)
+- [x] **MAJ-2**: Throw error when fallback returns empty array with non-empty input
+- [x] **MAJ-3**: Clamp negative engagement values to 0 in `calculateEngagementScore()`
+- [x] **MAJ-4**: Validate date parsing in `calculateRecencyScore()` - return 50 for invalid dates
+- [x] **MAJ-5**: Re-validate after rank mutation with `ScoredItemSchema.parse()`
+- [x] **MAJ-6**: Extract sanitization logic to `src/utils/sanitization.ts`
+- [x] **MAJ-7**: Extract error sanitization to shared utils
+- [x] **MAJ-9**: Add structured delimiters `<<<USER_PROMPT_START>>>` for prompt injection defense
+- [x] **MAJ-10**: Add pre-build prompt length estimation to fail fast
+
+**Architecture Improvements:**
+- [x] Created `src/scoring/index.ts` barrel export
+- [x] Created `src/utils/sanitization.ts` with shared INJECTION_PATTERNS and SENSITIVE_PATTERNS
+- [x] Created `src/utils/index.ts` for utility exports
+- [x] Added `topScored?: number` to PipelineConfig (default: 50)
 
 ---
 
@@ -850,21 +877,21 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
   - [ ] Test cost estimation accuracy
   - [ ] Test different quality profiles
 
-- [ ] `scoring.test.ts`:
-  - [ ] Test weighted score calculation
-  - [ ] Test verification level boost
-  - [ ] Test fallback scoring
+- [x] `scoring.test.ts`:
+  - [x] Test weighted score calculation
+  - [x] Test verification level boost
+  - [x] Test fallback scoring
 
 ### 13.2 Mocked API Tests
 
 **Directory: `tests/mocks/`**
 
-- [ ] Create API response fixtures:
-  - [ ] `perplexity_search_response.json`
-  - [ ] `perplexity_validation_response.json`
+- [x] Create API response fixtures:
+  - [x] `perplexity_search_response.json`
+  - [x] `perplexity_validation_response.json`
   - [ ] `scrapecreators_linkedin_response.json`
   - [ ] `scrapecreators_twitter_response.json`
-  - [ ] `gemini_scoring_response.json`
+  - [x] `gemini_scoring_response.json`
   - [ ] `gpt_synthesis_response.json`
 
 **Directory: `tests/integration/`**
@@ -884,9 +911,9 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
   - [ ] Test validateItems with mocked Perplexity (todo - awaiting Section 8 impl)
   - [ ] Test timeout handling (todo - awaiting Section 8 impl)
 
-- [ ] `scoring.test.ts`:
-  - [ ] Test scoring with mocked Gemini
-  - [ ] Test fallback scoring on error
+- [x] `scoring.test.ts`:
+  - [x] Test scoring with mocked Gemini
+  - [x] Test fallback scoring on error
 
 - [ ] `synthesis.test.ts`:
   - [ ] Test claim extraction

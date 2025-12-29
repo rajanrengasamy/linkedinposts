@@ -1,0 +1,124 @@
+{
+  "validResponse": {
+    "scores": [
+      {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "relevance": 85,
+        "authenticity": 70,
+        "recency": 90,
+        "engagementPotential": 75,
+        "reasoning": ["Highly relevant to AI trends", "Recent publication date", "Strong engagement metrics"]
+      },
+      {
+        "id": "22222222-2222-2222-2222-222222222222",
+        "relevance": 60,
+        "authenticity": 80,
+        "recency": 45,
+        "engagementPotential": 55,
+        "reasoning": ["Somewhat relevant", "Older content but verified source"]
+      }
+    ]
+  },
+  "partialResponse": {
+    "scores": [
+      {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "relevance": 85,
+        "authenticity": 70,
+        "recency": 90,
+        "engagementPotential": 75,
+        "reasoning": ["Good match for topic"]
+      }
+    ]
+  },
+  "invalidScores": {
+    "scores": [
+      {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "relevance": 150,
+        "authenticity": -10,
+        "recency": 90,
+        "engagementPotential": 75
+      }
+    ]
+  },
+  "missingFields": {
+    "scores": [
+      {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "relevance": 85
+      }
+    ]
+  },
+  "malformedJson": "{ scores: [broken",
+  "withCodeFence": "```json\n{\"scores\": [{\"id\": \"11111111-1111-1111-1111-111111111111\", \"relevance\": 85, \"authenticity\": 70, \"recency\": 90, \"engagementPotential\": 75, \"reasoning\": [\"Test item\"]}]}\n```",
+  "withCodeFenceNoLang": "```\n{\"scores\": [{\"id\": \"11111111-1111-1111-1111-111111111111\", \"relevance\": 85, \"authenticity\": 70, \"recency\": 90, \"engagementPotential\": 75}]}\n```",
+  "withTrailingText": "{\"scores\": [{\"id\": \"11111111-1111-1111-1111-111111111111\", \"relevance\": 85, \"authenticity\": 70, \"recency\": 90, \"engagementPotential\": 75}]}\n\nI hope this helps! Let me know if you need anything else.",
+  "withLeadingText": "Here are the scores you requested:\n\n{\"scores\": [{\"id\": \"11111111-1111-1111-1111-111111111111\", \"relevance\": 85, \"authenticity\": 70, \"recency\": 90, \"engagementPotential\": 75}]}",
+  "emptyScores": {
+    "scores": []
+  },
+  "multipleItems": {
+    "scores": [
+      {
+        "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "relevance": 95,
+        "authenticity": 85,
+        "recency": 100,
+        "engagementPotential": 90,
+        "reasoning": ["Excellent match", "Very recent", "High engagement potential"]
+      },
+      {
+        "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+        "relevance": 75,
+        "authenticity": 60,
+        "recency": 80,
+        "engagementPotential": 70,
+        "reasoning": ["Good relevance", "Moderate scores overall"]
+      },
+      {
+        "id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+        "relevance": 40,
+        "authenticity": 90,
+        "recency": 30,
+        "engagementPotential": 45,
+        "reasoning": ["Low relevance despite high authenticity", "Older content"]
+      }
+    ]
+  },
+  "highScores": {
+    "scores": [
+      {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "relevance": 100,
+        "authenticity": 100,
+        "recency": 100,
+        "engagementPotential": 100,
+        "reasoning": ["Perfect scores for testing caps"]
+      }
+    ]
+  },
+  "lowScores": {
+    "scores": [
+      {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "relevance": 0,
+        "authenticity": 0,
+        "recency": 0,
+        "engagementPotential": 0,
+        "reasoning": ["Minimum scores for testing bounds"]
+      }
+    ]
+  },
+  "noReasoning": {
+    "scores": [
+      {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "relevance": 50,
+        "authenticity": 50,
+        "recency": 50,
+        "engagementPotential": 50
+      }
+    ]
+  }
+}

@@ -15,6 +15,8 @@ import { createEmptyCostBreakdown } from '../schemas/index.js';
 
 /**
  * Cost per million tokens for each API
+ * @see https://ai.google.dev/gemini-api/docs/gemini-3
+ * @see https://docs.perplexity.ai/guides/pricing
  */
 export const TOKEN_COSTS = {
   perplexity: {
@@ -22,8 +24,8 @@ export const TOKEN_COSTS = {
     outputPerMillion: 15.0, // sonar-reasoning-pro output
   },
   gemini: {
-    inputPerMillion: 0.5, // Gemini 3 Flash input
-    outputPerMillion: 3.0, // Gemini 3 Flash output
+    inputPerMillion: 0.5, // Gemini 3 Flash Preview input ($0.50/1M)
+    outputPerMillion: 3.0, // Gemini 3 Flash Preview output ($3/1M)
   },
   openai: {
     inputPerMillion: 10.0, // GPT-5.2 Thinking input

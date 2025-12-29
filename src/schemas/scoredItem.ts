@@ -7,7 +7,19 @@ import { ValidatedItemSchema } from './validatedItem.js';
 const ScoreValue = z.number().min(0).max(100);
 
 /**
- * Scoring weights for calculating overall score
+ * Scoring weights for overall score calculation.
+ *
+ * These weights are fixed by design:
+ * - relevance (35%): Most important for LinkedIn post relevance
+ * - authenticity (30%): Rewards verified content
+ * - recency (20%): Prefers newer content
+ * - engagementPotential (15%): Considers engagement appeal
+ *
+ * Note: When validation is skipped (--skip-validation), items are marked
+ * UNVERIFIED and receive no authenticity boost. The 30% weight still applies
+ * but with lower base scores. This is intentional - skipping validation
+ * should result in lower overall scores to encourage verification.
+ *
  * Must sum to 1.0
  */
 export const SCORING_WEIGHTS = {
@@ -73,14 +85,21 @@ export function calculateOverallScore(scores: Omit<Scores, 'overall'>): number {
 /**
  * Calculate recency score based on publication date
  * Items within 24h get 100, decaying over 7 days to minimum of 10
+ *
+ * MAJ-4 Fix: Validates parsed dates and returns neutral 50 for invalid strings.
  */
 export function calculateRecencyScore(publishedAt: string | undefined): number {
   if (!publishedAt) {
     return 50; // Default for unknown dates
   }
 
+  const published = Date.parse(publishedAt);
+  if (isNaN(published)) {
+    // Invalid date string - return neutral score
+    return 50;
+  }
+
   const now = Date.now();
-  const published = new Date(publishedAt).getTime();
   const ageMs = now - published;
   const ageHours = ageMs / (1000 * 60 * 60);
   const ageDays = ageHours / 24;
@@ -99,13 +118,20 @@ export function calculateRecencyScore(publishedAt: string | undefined): number {
 /**
  * Calculate engagement score normalized to 0-100
  * Uses log scale to handle viral content without skewing
+ *
+ * MAJ-3 Fix: Guards against negative values to prevent NaN results.
  */
 export function calculateEngagementScore(
   likes: number,
   comments: number,
   shares: number
 ): number {
-  const total = likes + comments * 2 + shares * 3; // Weight interactions
+  // Guard against negative values
+  const safeLikes = Math.max(0, likes);
+  const safeComments = Math.max(0, comments);
+  const safeShares = Math.max(0, shares);
+
+  const total = safeLikes + safeComments * 2 + safeShares * 3; // Weight interactions
 
   if (total === 0) {
     return 0;

@@ -121,6 +121,9 @@ export interface PipelineConfig {
 
   /** Validate config and exit without running */
   dryRun: boolean;
+
+  /** Number of top-scored items to return (default: 50) */
+  topScored?: number;
 }
 
 /**
