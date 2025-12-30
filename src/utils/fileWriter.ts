@@ -3,10 +3,12 @@
  *
  * Handles all file output operations with optional schema validation.
  * Creates timestamped output directories for each pipeline run.
+ *
+ * SECURITY: Includes path traversal protection to prevent writing outside cwd.
  */
 
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve, relative, isAbsolute } from 'node:path';
 import type { z } from 'zod';
 import type { SourceReference, SourcesFile } from '../schemas/index.js';
 import type { PipelineStatus } from '../types/index.js';
@@ -17,6 +19,48 @@ import {
   SCHEMA_VERSION,
 } from '../schemas/index.js';
 import { logVerbose, logError } from './logger.js';
+
+// ============================================
+// Path Security
+// ============================================
+
+/**
+ * Validate that an output directory path does not escape the working directory.
+ *
+ * SECURITY: Prevents path traversal attacks where malicious input like
+ * `../../sensitive-area` or absolute paths outside cwd could write files
+ * to unintended locations.
+ *
+ * Allowed paths:
+ * - Relative paths within cwd (e.g., './output', 'output/subdir')
+ * - Absolute paths that resolve to within cwd or its subdirectories
+ *
+ * Rejected paths:
+ * - Paths that escape cwd (e.g., '../outside', '../../etc')
+ * - Absolute paths outside cwd (e.g., '/etc/passwd', '/tmp/malicious')
+ *
+ * @param userPath - The path provided by the user
+ * @returns The validated path (unchanged if valid)
+ * @throws Error if path traversal is detected
+ */
+export function validateOutputDir(userPath: string): string {
+  const cwd = process.cwd();
+  const absolutePath = resolve(cwd, userPath);
+  const relativeToCwd = relative(cwd, absolutePath);
+
+  // Check if path escapes cwd:
+  // - Starts with '..' means it goes above cwd
+  // - isAbsolute check catches edge cases on Windows
+  if (relativeToCwd.startsWith('..') || isAbsolute(relativeToCwd)) {
+    throw new Error(
+      `Invalid output directory: path traversal detected. ` +
+        `Path must be within the current working directory. ` +
+        `Received: "${userPath}"`
+    );
+  }
+
+  return userPath;
+}
 
 // ============================================
 // Directory Management
@@ -41,10 +85,17 @@ function generateTimestamp(): string {
 /**
  * Ensure output directory exists, creating timestamped subdirectory.
  *
+ * SECURITY: Validates the path to prevent path traversal attacks
+ * before creating any directories.
+ *
  * @param basePath - Base output directory (e.g., './output')
  * @returns Full path to the created timestamped directory
+ * @throws Error if path traversal is detected
  */
 export async function ensureOutputDir(basePath: string): Promise<string> {
+  // SECURITY: Validate path before creating directory
+  validateOutputDir(basePath);
+
   const timestamp = generateTimestamp();
   const outputDir = join(basePath, timestamp);
 
@@ -219,14 +270,13 @@ export interface OutputWriter {
 }
 
 /**
- * Create an output writer for a pipeline run.
+ * Create an output writer from an existing directory path.
+ * Use this when the output directory has already been created.
  *
- * @param basePath - Base output directory
+ * @param outputDir - Already-created output directory path
  * @returns OutputWriter with methods for each output file
  */
-export async function createOutputWriter(basePath: string): Promise<OutputWriter> {
-  const outputDir = await ensureOutputDir(basePath);
-
+export function createOutputWriterFromDir(outputDir: string): OutputWriter {
   return {
     outputDir,
 
@@ -267,6 +317,17 @@ export async function createOutputWriter(basePath: string): Promise<OutputWriter
       await writePipelineStatus(join(outputDir, 'pipeline_status.json'), status);
     },
   };
+}
+
+/**
+ * Create an output writer for a pipeline run.
+ *
+ * @param basePath - Base output directory
+ * @returns OutputWriter with methods for each output file
+ */
+export async function createOutputWriter(basePath: string): Promise<OutputWriter> {
+  const outputDir = await ensureOutputDir(basePath);
+  return createOutputWriterFromDir(outputDir);
 }
 
 /**

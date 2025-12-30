@@ -1706,3 +1706,154 @@ Section 11 (Image Generation) is now **production-ready** with all 17 QA issues 
 4. **End-to-end test**: Run full pipeline with real API keys
 
 ---
+
+## Session: 2025-12-30 10:15 AEST
+
+### Summary
+Implemented Section 12 (CLI Entry Point) using 5 parallel senior-developer agents. Created the complete CLI infrastructure including Commander setup, pre-flight checks, pipeline orchestration, and error handling. All 580 tests pass with 0 TypeScript errors.
+
+### Work Completed
+- **Agent 1**: Created `src/cli/program.ts` (184 lines) - Commander CLI setup with all PRD options
+- **Agent 2**: Created `src/cli/preflight.ts` (200 lines) - API key validation, cost estimation, dry-run mode
+- **Agent 3**: Created `src/cli/runPipeline.ts` (434 lines) - 5-stage pipeline orchestration
+- **Agent 4**: Created `src/cli/errorHandler.ts` (288 lines) - Error handling with exit codes
+- **Agent 5**: Created `src/cli/index.ts` (73 lines) - Barrel export, updated main entry point, 41 CLI tests
+
+### Files Modified/Created
+| File | Action | Lines |
+|:-----|:-------|:------|
+| `src/cli/program.ts` | Created | 184 |
+| `src/cli/preflight.ts` | Created | 200 |
+| `src/cli/runPipeline.ts` | Created | 434 |
+| `src/cli/errorHandler.ts` | Created | 288 |
+| `src/cli/index.ts` | Created | 73 |
+| `src/index.ts` | Updated | CLI entry point |
+| `tests/unit/cli.test.ts` | Created | 41 tests |
+| `docs/TODO-v2.md` | Updated | Section 12 checkboxes |
+
+### Issues & Resolutions
+| Issue | Resolution | Status |
+|:------|:-----------|:-------|
+| Type mismatch in PipelineResult.sources | Agent 5 fixed to wrap sources in SourcesFile structure | ✅ Resolved |
+| File ownership conflicts between agents | Distributed work across separate files (cli/*.ts) | ✅ Resolved |
+
+### Key Decisions
+- **Modular CLI Structure**: Created `src/cli/` directory with separate files for each concern (program, preflight, pipeline, errors) instead of one monolithic index.ts
+- **Exit Codes**: Used distinct codes (0=success, 1=pipeline error, 2=config error) for CLI scripting
+- **Parallel Agent Strategy**: 5 agents with clear file ownership to avoid conflicts
+
+### Learnings
+- 5-agent parallel development is highly effective when work is scoped to non-overlapping files
+- Barrel exports (`cli/index.ts`) simplify integration and maintain clean imports
+- Pre-flight checks should handle early-exit modes (--print-cost-estimate, --dry-run) before pipeline execution
+
+### Open Items / Blockers
+- [x] Section 12: CLI Entry Point - **COMPLETE** ✅
+- [ ] Section 13: Testing (golden tests, evaluation harness)
+- [ ] Sections 14-15: Documentation, Final Checks
+- [ ] End-to-end test with real API keys
+
+### Context for Next Session
+Section 12 (CLI Entry Point) is now **100% complete**. The full pipeline is wired together:
+
+**CLI Usage**:
+```bash
+npx tsx src/index.ts "AI trends in healthcare" --verbose
+npx tsx src/index.ts "AI trends" --fast
+npx tsx src/index.ts "AI trends" --print-cost-estimate
+npx tsx src/index.ts "AI trends" --dry-run
+```
+
+**CLI Structure** (1,179 lines total):
+- `src/cli/program.ts` - Commander with all PRD options
+- `src/cli/preflight.ts` - API validation, cost/dry-run modes
+- `src/cli/runPipeline.ts` - 5-stage orchestration
+- `src/cli/errorHandler.ts` - Error handling, exit codes
+- `src/cli/index.ts` - Barrel export
+
+**Test Results**: 580 tests pass (41 new CLI tests)
+**TypeScript**: Compiles with 0 errors
+
+**Recommended next steps:**
+1. **End-to-end test**: Run full pipeline with real API keys
+2. **Section 13**: Complete golden tests and evaluation harness
+3. **Sections 14-15**: Documentation and final checks
+
+---
+
+## Session: 2025-12-30 11:10 AEST
+
+### Summary
+Resolved all 23 QA issues identified in Section 12 (CLI Entry Point) QA reports from Claude and Codex reviewers. Used 5 parallel senior-developer agents to fix 2 CRITICAL, 10 MAJOR, 9 MINOR, and 4 CODEX issues. All 603 tests pass with 0 TypeScript errors.
+
+### Work Completed
+- **Agent 1 (Critical)**: Fixed pipeline timeout enforcement (CRIT-1) with `withTimeout()` wrapper; fixed outputDir passing to error handler (CRIT-2) by pre-creating directory before pipeline
+- **Agent 2 (Security)**: Added path traversal validation (MAJ-3) with `validateOutputDir()`; sanitized stack traces in error messages (MAJ-4); added 11 security tests (MIN-9)
+- **Agent 3 (CLI Validation)**: Added empty prompt validation (MAJ-5); Commander error handling with proper exit codes (MAJ-6); quality profile conflict warnings (MAJ-7); invalid CLI option warnings (CODEX-3); fixed exit code for missing prompt (CODEX-4)
+- **Agent 4 (Code Quality)**: Removed 180+ lines of dead code (MAJ-2) which also fixed type assertions (MAJ-1); documented stage tracking design (MAJ-8); removed redundant validation (MAJ-9)
+- **Agent 5 (Tests & Polish)**: Added tests for critical flows (MAJ-10); removed internal PipelineState export (MIN-1, MIN-8); added config validation warnings (MIN-2, MIN-3, MIN-4); added type guard (MIN-6); documented type exports (MIN-5, MIN-7)
+
+### Files Modified
+| File | Changes |
+|:-----|:--------|
+| `src/index.ts` | Pipeline timeout, error sanitization, prompt validation, Commander error handling |
+| `src/cli/runPipeline.ts` | Removed 180+ lines dead code, added PipelineOptions |
+| `src/cli/program.ts` | Quality conflict warning, type guard for options |
+| `src/cli/preflight.ts` | dryRun + printCostEstimate warning |
+| `src/cli/errorHandler.ts` | Stage tracking documentation |
+| `src/cli/index.ts` | Updated exports (PipelineOptions) |
+| `src/config.ts` | Invalid CLI option warnings |
+| `src/utils/fileWriter.ts` | Path traversal validation |
+| `tests/unit/cli.test.ts` | 11 new security tests, preflight/errorHandler tests |
+
+### Issues & Resolutions
+| Issue | Resolution | Status |
+|:------|:-----------|:-------|
+| CRIT-1: Pipeline timeout not enforced | Wrapped `runPipeline()` with `withTimeout(config.timeoutSeconds * 1000)` | ✅ Resolved |
+| CRIT-2: outputDir not passed to error handler | Pre-create outputDir before pipeline, pass to ErrorContext | ✅ Resolved |
+| MAJ-2: 180 lines dead code | Removed unused stage functions (runCollectionStage, etc.) | ✅ Resolved |
+| MAJ-3: Path traversal vulnerability | Added `validateOutputDir()` to reject `../` paths | ✅ Resolved |
+
+### Key Decisions
+- **Pre-create output directory**: Create outputDir BEFORE pipeline runs so error handler can always write `pipeline_status.json`
+- **Remove dead code over refactoring**: Chose to delete unused stage functions rather than integrate them since inline implementation worked
+- **Warnings over errors for invalid options**: Log warnings for invalid CLI values and fallback to defaults rather than hard failing
+
+### Learnings
+- `program.exitOverride()` is required to catch Commander parsing errors and use custom exit codes
+- `program.outputHelp()` should be used instead of `program.help()` to control exit code after showing help
+- Path traversal validation should allow absolute paths within cwd, not just reject all absolute paths
+
+### Open Items / Blockers
+- [x] Section 12 QA Issues - **23/23 RESOLVED** ✅
+- [ ] Section 13: Testing (golden tests, evaluation harness)
+- [ ] Sections 14-15: Documentation, Final Checks
+- [ ] End-to-end test with real API keys
+
+### Context for Next Session
+Section 12 (CLI Entry Point) is now **fully QA-hardened** with all 23 issues resolved:
+
+**Key Improvements**:
+- Global pipeline timeout enforcement via `withTimeout()`
+- Pre-created output directories for reliable error logging
+- Path traversal protection with `validateOutputDir()`
+- Stack trace sanitization in error messages
+- Commander error handling with proper exit codes
+- Comprehensive validation warnings for invalid CLI options
+- 180+ lines of dead code removed
+
+**Test Results**: 603 tests pass (64 new since Section 12 implementation)
+**TypeScript**: Compiles with 0 errors
+
+**Cumulative QA Status**:
+- Section 10: 30/30 issues fixed ✅
+- Section 11: 17/17 issues fixed ✅
+- Section 12: 23/23 issues fixed ✅
+- **Total: 70 QA issues resolved**
+
+**Recommended next steps:**
+1. **End-to-end test**: Run full pipeline with real API keys
+2. **Section 13**: Complete golden tests and evaluation harness
+3. **Sections 14-15**: Documentation and final checks
+
+---

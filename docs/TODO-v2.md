@@ -740,7 +740,7 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
 **File: `src/index.ts`**
 
 ### 12.1 Commander Setup
-- [ ] Configure CLI with all options:
+- [x] Configure CLI with all options:
   ```typescript
   program
     .name('linkedin-post-generator')
@@ -772,20 +772,20 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
   ```
 
 ### 12.2 Config Parsing
-- [ ] Parse options into PipelineConfig
-- [ ] Apply quality profile overrides
-- [ ] Validate source flags
-- [ ] Handle --fast as shortcut for profile
+- [x] Parse options into PipelineConfig
+- [x] Apply quality profile overrides
+- [x] Validate source flags
+- [x] Handle --fast as shortcut for profile
 
 ### 12.3 Pre-flight Checks
-- [ ] Validate API keys for requested sources
-- [ ] If --print-cost-estimate:
-  - [ ] Print estimate and exit
-- [ ] If --dry-run:
-  - [ ] Validate config, print summary, exit
+- [x] Validate API keys for requested sources
+- [x] If --print-cost-estimate:
+  - [x] Print estimate and exit
+- [x] If --dry-run:
+  - [x] Validate config, print summary, exit
 
 ### 12.4 Main Pipeline
-- [ ] Implement `runPipeline(prompt, config)`:
+- [x] Implement `runPipeline(prompt, config)`:
   ```typescript
   async function runPipeline(prompt: string, config: PipelineConfig) {
     const outputDir = ensureOutputDir(config.outputDir);
@@ -852,10 +852,15 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
   ```
 
 ### 12.5 Error Wrapper
-- [ ] Catch all errors
-- [ ] Write partial outputs if available
-- [ ] Write pipeline_status.json with error details
-- [ ] Exit with code 1 on failure
+- [x] Catch all errors
+- [x] Write partial outputs if available
+- [x] Write pipeline_status.json with error details
+- [x] Exit with code 1 on failure (or code 2 for config errors)
+
+### 12.6 Barrel Export and Entry Point
+- [x] Create `src/cli/index.ts` barrel export
+- [x] Update `src/index.ts` main entry point
+- [x] Create CLI unit tests in `tests/unit/cli.test.ts`
 
 ---
 

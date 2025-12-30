@@ -13,6 +13,7 @@ import {
   API_CONCURRENCY_LIMITS,
   STAGE_TIMEOUT_MS,
 } from './types/index.js';
+import { logWarning } from './utils/logger.js';
 
 // ============================================
 // Environment Variable Names
@@ -170,17 +171,31 @@ export interface CliOptions {
 }
 
 /**
- * Parse sources string into array of SourceOption
+ * Parse sources string into array of SourceOption.
+ * CODEX-3: Warns about invalid source tokens.
  */
 function parseSources(sourcesStr: string): SourceOption[] {
   const valid: SourceOption[] = ['web', 'linkedin', 'x'];
-  const sources = sourcesStr
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter((s) => valid.includes(s as SourceOption)) as SourceOption[];
+  const tokens = sourcesStr.split(',').map((s) => s.trim().toLowerCase());
+
+  // CODEX-3: Identify and warn about invalid tokens
+  const invalidTokens = tokens.filter(
+    (s) => s.length > 0 && !valid.includes(s as SourceOption)
+  );
+  if (invalidTokens.length > 0) {
+    logWarning(
+      `Invalid source(s) ignored: ${invalidTokens.join(', ')}. Valid options: web, linkedin, x`
+    );
+  }
+
+  const sources = tokens.filter((s) => valid.includes(s as SourceOption)) as SourceOption[];
 
   // Ensure at least 'web' is included
   if (!sources.includes('web')) {
+    if (tokens.length > 0 && tokens[0].length > 0) {
+      // User specified sources but none were valid or 'web' was not included
+      logWarning("'web' source automatically added (required).");
+    }
     sources.unshift('web');
   }
 
@@ -188,19 +203,34 @@ function parseSources(sourcesStr: string): SourceOption[] {
 }
 
 /**
- * Parse quality profile string
+ * Parse quality profile string.
+ * CODEX-3: Warns about invalid quality profile values.
  */
 function parseQualityProfile(profileStr: string): QualityProfile {
   const valid: QualityProfile[] = ['fast', 'default', 'thorough'];
   const profile = profileStr.toLowerCase() as QualityProfile;
-  return valid.includes(profile) ? profile : 'default';
+  if (!valid.includes(profile)) {
+    logWarning(
+      `Invalid quality profile '${profileStr}' ignored. Using 'default'. Valid options: fast, default, thorough`
+    );
+    return 'default';
+  }
+  return profile;
 }
 
 /**
- * Parse image resolution string
+ * Parse image resolution string.
+ * CODEX-3: Warns about invalid image resolution values.
  */
 function parseImageResolution(resStr: string): '2k' | '4k' {
-  return resStr === '4k' ? '4k' : '2k';
+  const normalized = resStr.toLowerCase();
+  if (normalized !== '2k' && normalized !== '4k') {
+    logWarning(
+      `Invalid image resolution '${resStr}' ignored. Using '2k'. Valid options: 2k, 4k`
+    );
+    return '2k';
+  }
+  return normalized as '2k' | '4k';
 }
 
 /**
@@ -287,6 +317,45 @@ export function buildConfig(options: CliOptions): PipelineConfig {
 
   if (options.dryRun !== undefined) {
     config.dryRun = options.dryRun;
+  }
+
+  // MIN-2: Validate maxPerSource vs maxTotal relationship
+  const numSources = config.sources.length;
+  const maxPossible = config.maxPerSource * numSources;
+  if (maxPossible < config.maxTotal) {
+    logWarning(
+      `maxPerSource (${config.maxPerSource}) * sources (${numSources}) = ${maxPossible} ` +
+        `is less than maxTotal (${config.maxTotal}). Effective max will be ${maxPossible}.`
+    );
+  }
+
+  // MIN-4: Warn when numeric values fall back to defaults
+  if (options.maxPerSource !== undefined) {
+    const parsed = parseInt(options.maxPerSource, 10);
+    if (isNaN(parsed) || parsed <= 0) {
+      logWarning(
+        `Invalid --max-per-source value '${options.maxPerSource}'. Using default: ${config.maxPerSource}`
+      );
+    }
+  }
+
+  const maxTotalInput = options.maxTotal ?? options.maxResults;
+  if (maxTotalInput !== undefined) {
+    const parsed = parseInt(maxTotalInput, 10);
+    if (isNaN(parsed) || parsed <= 0) {
+      logWarning(
+        `Invalid --max-total value '${maxTotalInput}'. Using default: ${config.maxTotal}`
+      );
+    }
+  }
+
+  if (options.timeout !== undefined) {
+    const parsed = parseInt(options.timeout, 10);
+    if (isNaN(parsed) || parsed <= 0) {
+      logWarning(
+        `Invalid --timeout value '${options.timeout}'. Using default: ${config.timeoutSeconds}`
+      );
+    }
   }
 
   return config;

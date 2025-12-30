@@ -175,3 +175,109 @@
 - [x] TypeScript compiles: `npx tsc --noEmit` ✅
 - [x] All tests pass: `npm test` ✅ (539 tests pass)
 - [x] No regressions introduced ✅
+
+---
+
+## Section 12 (CLI Entry Point) QA Fixes - Session 3
+
+**Sources**:
+- `docs/Section12-QA-issuesClaude.md`
+- `docs/Section12-QA-issuesCodex.md`
+**Date**: 2025-12-30
+
+### Critical Issues (2 total)
+- [x] CRIT-1: Pipeline timeout not enforced at global level - `src/index.ts`
+- [x] CRIT-2: Output directory not passed to error handler - `src/index.ts`
+
+### Major Issues (10 total)
+- [x] MAJ-1: Unsafe Type Assertions (as any) in runPipeline.ts - Removed with dead code
+- [x] MAJ-2: Dead Code - Unused Stage Functions (~180 lines) - `src/cli/runPipeline.ts`
+- [x] MAJ-3: Path Traversal Vulnerability in --output-dir - `src/utils/fileWriter.ts`
+- [x] MAJ-4: Stack Trace Exposure in Error Messages - `src/index.ts`
+- [x] MAJ-5: No validation that prompt is non-empty string - `src/index.ts`
+- [x] MAJ-6: No error handling for Commander parsing failures - `src/index.ts`
+- [x] MAJ-7: Missing validation for quality profile conflicts - `src/cli/program.ts`
+- [x] MAJ-8: Inconsistent Stage Tracking Between Modules - Added documentation
+- [x] MAJ-9: Redundant API key validation creates confusion - `src/index.ts`
+- [x] MAJ-10: Test Coverage Gaps for Critical Flows - `tests/unit/cli.test.ts`
+
+### Minor Issues (9 total)
+- [x] MIN-1: PipelineState export not explicitly required - Removed export
+- [x] MIN-2: Missing edge case: maxPerSource > maxTotal - `src/config.ts`
+- [x] MIN-3: Missing edge case: dryRun + printCostEstimate both true - `src/cli/preflight.ts`
+- [x] MIN-4: Silent fallback for invalid numeric values - `src/config.ts`
+- [x] MIN-5: Type Assertion for Commander Internal API in tests - Added documentation
+- [x] MIN-6: Unsafe Type Assertion in parseCliOptions - Added type guard
+- [x] MIN-7: Missing Type Export in Barrel (CommanderOptions) - Added documentation
+- [x] MIN-8: PipelineState Type Export Inconsistency - Removed export
+- [x] MIN-9: Test Coverage for Security-Specific Scenarios - `tests/unit/cli.test.ts`
+
+### Codex Issues (Overlapping)
+- [x] CODEX-1: Pipeline status not written on failure (same as CRIT-2)
+- [x] CODEX-2: --timeout not enforced (same as CRIT-1)
+- [x] CODEX-3: Invalid CLI options silently ignored - `src/config.ts`
+- [x] CODEX-4: Missing prompt exits with success code - `src/index.ts`
+
+### Agent Distribution
+
+| Agent | Issues Assigned | Focus Area |
+|-------|-----------------|------------|
+| Agent 1 | CRIT-1, CRIT-2 | Pipeline timeout + outputDir to error handler |
+| Agent 2 | MAJ-3, MAJ-4, MIN-9 | Security: path traversal, stack traces, security tests |
+| Agent 3 | MAJ-5, MAJ-6, MAJ-7, CODEX-3, CODEX-4 | CLI validation & error handling |
+| Agent 4 | MAJ-1, MAJ-2, MAJ-8, MAJ-9 | Type safety & code quality |
+| Agent 5 | MAJ-10, MIN-1 through MIN-8 | Tests & minor issues |
+
+### Fix Progress (Session 3)
+
+| Issue | Agent | Status | Notes |
+|-------|-------|--------|-------|
+| CRIT-1 | Agent 1 | ✅ Fixed | withTimeout() wraps pipeline, enforces config.timeoutSeconds |
+| CRIT-2 | Agent 1 | ✅ Fixed | Pre-create outputDir, pass to ErrorContext |
+| MAJ-1 | Agent 4 | ✅ Fixed | Removed with dead code (was in unused stage functions) |
+| MAJ-2 | Agent 4 | ✅ Fixed | Removed 180+ lines of unused stage functions |
+| MAJ-3 | Agent 2 | ✅ Fixed | validateOutputDir() prevents path traversal |
+| MAJ-4 | Agent 2 | ✅ Fixed | Sanitize error.message, redact API keys |
+| MAJ-5 | Agent 3 | ✅ Fixed | Validate prompt is non-empty string |
+| MAJ-6 | Agent 3 | ✅ Fixed | program.exitOverride() + CommanderError handling |
+| MAJ-7 | Agent 3 | ✅ Fixed | Warning when --fast conflicts with --quality |
+| MAJ-8 | Agent 4 | ✅ Fixed | Added documentation explaining design |
+| MAJ-9 | Agent 4 | ✅ Fixed | Removed redundant double-check validation |
+| MAJ-10 | Agent 5 | ✅ Fixed | Added preflight, withErrorHandling, path validation tests |
+| MIN-1 | Agent 5 | ✅ Fixed | Removed PipelineState export (internal) |
+| MIN-2 | Agent 5 | ✅ Fixed | Warning when maxPerSource * sources < maxTotal |
+| MIN-3 | Agent 5 | ✅ Fixed | Warning when both flags provided |
+| MIN-4 | Agent 5 | ✅ Fixed | Warnings for fallback to defaults |
+| MIN-5 | Agent 5 | ✅ Fixed | Added comment explaining _args access |
+| MIN-6 | Agent 5 | ✅ Fixed | isValidCommanderOptions() type guard |
+| MIN-7 | Agent 5 | ✅ Fixed | Added documentation (intentionally not exported) |
+| MIN-8 | Agent 5 | ✅ Fixed | Removed PipelineState export |
+| MIN-9 | Agent 2 | ✅ Fixed | 11 new security tests (path traversal + API key sanitization) |
+| CODEX-3 | Agent 3 | ✅ Fixed | Warnings for invalid sources/quality/resolution |
+| CODEX-4 | Agent 3 | ✅ Fixed | outputHelp() + explicit exit(CONFIG_ERROR) |
+
+### Files Modified (Session 3)
+- `src/index.ts` - Pipeline timeout, error handling, prompt validation
+- `src/cli/runPipeline.ts` - Removed dead code, added PipelineOptions
+- `src/cli/program.ts` - Quality conflict warning, type guard
+- `src/cli/preflight.ts` - dryRun + printCostEstimate warning
+- `src/cli/errorHandler.ts` - Stage tracking documentation
+- `src/cli/index.ts` - Updated exports
+- `src/config.ts` - CLI option validation warnings
+- `src/utils/fileWriter.ts` - Path traversal validation
+- `tests/unit/cli.test.ts` - New tests for critical flows + security
+
+### Verification (Session 3)
+- [x] TypeScript compiles: `npx tsc --noEmit` ✅
+- [x] All tests pass: `npm test` ✅ (603 tests pass)
+- [x] No regressions introduced ✅
+
+---
+
+## Summary
+
+**Section 10**: 30 issues - 30 fixed ✅
+**Section 11**: 17 issues - 17 fixed ✅
+**Section 12**: 23 issues - 23 fixed ✅
+
+**Total**: 70 issues fixed across all QA sessions
