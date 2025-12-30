@@ -88,6 +88,13 @@ export type QualityProfile = 'fast' | 'default' | 'thorough';
 export type ImageResolution = '2k' | '4k';
 
 /**
+ * Scoring model options
+ * - 'gemini': Google Gemini (default)
+ * - 'kimi2': Kimi K2 via OpenRouter
+ */
+export type ScoringModel = 'gemini' | 'kimi2';
+
+/**
  * Source types that can be enabled
  */
 export type SourceOption = 'web' | 'linkedin' | 'x';
@@ -129,6 +136,9 @@ export interface PipelineConfig {
   /** Image resolution for infographic */
   imageResolution: ImageResolution;
 
+  /** Scoring model to use: 'gemini' (default) or 'kimi2' (OpenRouter) */
+  scoringModel: ScoringModel;
+
   /** Output directory path */
   outputDir: string;
 
@@ -158,8 +168,9 @@ export const DEFAULT_CONFIG: PipelineConfig = {
   maxTotal: 75,
   validationBatchSize: 10,
   scoringBatchSize: 25,
-  timeoutSeconds: 180,
+  timeoutSeconds: 600,
   imageResolution: '2k',
+  scoringModel: 'gemini',
   outputDir: './output',
   saveRaw: false,
   verbose: false,

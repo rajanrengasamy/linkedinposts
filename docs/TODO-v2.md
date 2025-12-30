@@ -1,7 +1,7 @@
 # LinkedIn Post Generator - Project TODO v2
 
-**Version**: 2.0
-**Last Updated**: 2025-12-26
+**Version**: 2.1
+**Last Updated**: 2025-12-30
 **PRD Reference**: `docs/PRD-v2.md`
 
 ---
@@ -1032,6 +1032,52 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
 
 ---
 
+## 16. Phase 1 Enhancements
+
+### 16.1 Smart Prompt Breakdown for Multi-Source Search
+
+**Problem**: Long prompts work well for web search but may be too verbose for social media search APIs.
+
+**Solution**:
+- [x] When a long prompt is provided (> threshold characters):
+  - [x] Send the full long prompt to web search (Perplexity)
+  - [x] Use LLM to break down the prompt into shorter, social-media-optimized search queries
+  - [x] Send the broken-down queries to LinkedIn and Twitter collectors
+- [x] Implement `src/prompts/breakdown.ts`:
+  - [x] `isLongPrompt(prompt: string, threshold?: number)` - Check if prompt exceeds threshold
+  - [x] `breakdownForSocialSearch(prompt: string)` - Use LLM to generate 3-5 shorter search terms
+  - [x] Return both original and broken-down versions
+- [x] Update collector orchestrator to use appropriate prompt version per source
+
+### 16.2 Alternative Scoring Model: OpenRouter KIMI 2
+
+**Problem**: Want to optionally use OpenRouter's KIMI 2 thinking model instead of Gemini 3 for scoring.
+
+**Solution**:
+- [x] Add CLI argument for scoring model selection:
+  ```typescript
+  .option('--scoring-model <model>', 'Scoring model: gemini|kimi2', 'gemini')
+  ```
+- [x] Add `OPENROUTER_API_KEY` to environment configuration
+- [x] Implement `src/scoring/openrouter.ts`:
+  - [x] `scoreItemsWithKimi2(items: ValidatedItem[], prompt, config)`
+  - [x] Use OpenRouter API to call KIMI 2 thinking model
+  - [x] Match same output format as Gemini scoring
+- [x] Update `src/scoring/index.ts`:
+  - [x] Route to appropriate scorer based on `--scoring-model` flag
+- [x] Update `src/config.ts`:
+  - [x] Add `scoringModel` to PipelineConfig
+  - [x] Validate OPENROUTER_API_KEY when kimi2 is selected
+- [x] Update cost estimation for KIMI 2 pricing
+  - [x] Added TOKEN_COSTS.kimi2 with OpenRouter pricing ($0.456/M input, $1.84/M output)
+  - [x] Updated estimateScoringCost to route based on config.scoringModel
+  - [x] Updated TokenUsage interface with kimi2 field
+  - [x] Updated calculateActualCost to handle kimi2 usage
+  - [x] Added CostTracker.addKimi2() method
+  - [x] Added comprehensive tests for KIMI 2 cost estimation
+
+---
+
 ## API Documentation Links
 
 | Service | Documentation |
@@ -1047,6 +1093,11 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
 ---
 
 ## Changelog
+
+### v2.1.0 (2025-12-30)
+- Added Section 16: Phase 1 Enhancements
+- Added smart prompt breakdown for multi-source search (long prompts → web, broken-down → social)
+- Added OpenRouter KIMI 2 as alternative scoring model via `--scoring-model` flag
 
 ### v2.0.0 (2025-12-26)
 - Added Zod schema validation for all data types

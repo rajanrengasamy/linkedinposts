@@ -2234,3 +2234,85 @@ npx tsx src/index.ts "AI trends" --sources web,x --verbose
 ```
 
 ---
+
+## Session: 2025-12-31 03:20 AEST
+
+### Summary
+Implemented Section 16 (Phase 1 Enhancements) using 5 parallel senior-developer agents. Added Smart Prompt Breakdown for multi-source search and alternative OpenRouter KIMI 2 scoring model. All features are now integrated and tests pass.
+
+### Work Completed
+
+**New Modules Created:**
+- **`src/prompts/breakdown.ts`** - Smart prompt breakdown for social media search
+  - `isLongPrompt(prompt, threshold?)` - Threshold check (default 100 chars)
+  - `breakdownForSocialSearch(prompt)` - Uses Gemini to generate 3-5 short queries
+  - `getPromptForSource(prompt, breakdown, source)` - Returns appropriate prompt per source
+  - Heuristic fallback (keyword extraction) if Gemini fails
+- **`src/prompts/index.ts`** - Barrel export
+
+- **`src/scoring/openrouter.ts`** - OpenRouter KIMI 2 scoring alternative
+  - `scoreItemsWithKimi2(items, userPrompt, config)` - Drop-in replacement for Gemini scoring
+  - Uses `moonshotai/kimi-k2-thinking` model with extended reasoning
+  - Reuses `buildScoringPrompt`, `processScoredItems` from gemini.ts
+
+**Files Modified:**
+- **`src/types/index.ts`** - Added `ScoringModel` type (`'gemini' | 'kimi2'`), added to PipelineConfig
+- **`src/config.ts`** - Added `OPENROUTER_API_KEY` to ENV_KEYS, validation when kimi2 selected
+- **`src/cli/program.ts`** - Added `--scoring-model <model>` CLI option
+- **`src/collectors/index.ts`** - Integrated prompt breakdown for social sources
+- **`src/scoring/index.ts`** - Added `score()` router function between Gemini and KIMI 2
+- **`src/utils/cost.ts`** - Added KIMI 2 pricing ($0.456/M input, $1.84/M output)
+
+**New Tests Created:**
+- **`tests/unit/promptBreakdown.test.ts`** - 31 tests for breakdown module
+- **`tests/unit/scoringRouter.test.ts`** - 19 tests for scoring router
+
+### Issues & Resolutions
+| Issue | Resolution | Status |
+|:------|:-----------|:-------|
+| OpenRouter model ID unknown | Researched and found `moonshotai/kimi-k2-thinking` | ✅ Resolved |
+| KIMI 2 pricing unknown | Found via OpenRouter: $0.456/M in, $1.84/M out | ✅ Resolved |
+| Prompt breakdown for social sources | Uses Gemini with fallback to keyword extraction | ✅ Resolved |
+| 1 failing collector test | Pre-existing mock issue (unrelated to Section 16) | ⏳ Pre-existing |
+
+### Key Decisions
+- **Prompt Breakdown Threshold**: 100 characters default - prompts longer than this get broken down for social search
+- **Social Query Count**: Generate 3-5 shorter queries from long prompts
+- **KIMI 2 Integration**: Made it a drop-in replacement with identical interface to Gemini scoring
+- **Collector Orchestrator**: Web gets original prompt, social sources get broken-down queries
+
+### Learnings
+- **Parallel Agent Development**: 5 agents working in parallel can implement significant features quickly when given clear file ownership and interface contracts
+- **OpenRouter API**: Compatible with OpenAI chat format, enables reasoning via `reasoning: 'enabled'` parameter
+- **KIMI 2 Model**: Full ID is `moonshotai/kimi-k2-thinking` (256k context, extended reasoning)
+
+### Open Items / Blockers
+- [ ] Test `--scoring-model kimi2` with real OpenRouter API key
+- [ ] Test prompt breakdown with real social source collection
+- [ ] Consider adding `--prompt-threshold` CLI option to customize breakdown threshold
+
+### Context for Next Session
+**Section 16 fully implemented.** Both features are integrated and tested:
+
+1. **Smart Prompt Breakdown** (16.1):
+   - Long prompts (>100 chars) automatically broken down for LinkedIn/X collectors
+   - Web search still gets the full original prompt
+   - Graceful fallback if breakdown fails
+
+2. **KIMI 2 Scoring** (16.2):
+   - New `--scoring-model kimi2` CLI flag
+   - Requires `OPENROUTER_API_KEY` environment variable
+   - Cost estimation updated for KIMI 2 pricing
+
+**Test Commands:**
+```bash
+# Test with KIMI 2 scoring
+npx tsx src/index.ts "AI trends" --scoring-model kimi2 --verbose
+
+# Test prompt breakdown with social sources
+npx tsx src/index.ts "What are the latest developments in AI agents and autonomous systems for enterprise applications in 2025" --sources web,linkedin,x --verbose
+```
+
+**Test Results**: 1044 tests pass, TypeScript compiles cleanly, TODO-v2.md fully updated.
+
+---

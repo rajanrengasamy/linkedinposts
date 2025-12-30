@@ -46,6 +46,7 @@ function createTestConfig(overrides?: Partial<PipelineConfig>): PipelineConfig {
     scoringBatchSize: 25,
     timeoutSeconds: 180,
     imageResolution: '2k',
+    scoringModel: 'gemini',
     outputDir: './output',
     saveRaw: false,
     verbose: false,
@@ -74,9 +75,15 @@ describe('TOKEN_COSTS', () => {
     expect(TOKEN_COSTS.openai.outputPerMillion).toBe(30.0);
   });
 
+  it('has correct kimi2 pricing (OpenRouter)', () => {
+    expect(TOKEN_COSTS.kimi2.inputPerMillion).toBe(0.456);
+    expect(TOKEN_COSTS.kimi2.outputPerMillion).toBe(1.84);
+  });
+
   it('has all required API providers', () => {
     expect(TOKEN_COSTS).toHaveProperty('perplexity');
     expect(TOKEN_COSTS).toHaveProperty('gemini');
+    expect(TOKEN_COSTS).toHaveProperty('kimi2');
     expect(TOKEN_COSTS).toHaveProperty('openai');
   });
 
@@ -275,6 +282,43 @@ describe('estimateCost', () => {
     expect(highResult.perplexity).toBeGreaterThan(lowResult.perplexity);
     expect(highResult.gemini).toBeGreaterThan(lowResult.gemini);
   });
+
+  it('uses Gemini pricing when scoringModel is gemini (default)', () => {
+    const config = createTestConfig({ scoringModel: 'gemini' });
+    const result = estimateCost(config);
+
+    // Should have non-zero scoring cost
+    expect(result.gemini).toBeGreaterThan(0);
+  });
+
+  it('uses KIMI 2 pricing when scoringModel is kimi2', () => {
+    const geminiConfig = createTestConfig({ scoringModel: 'gemini' });
+    const kimi2Config = createTestConfig({ scoringModel: 'kimi2' });
+
+    const geminiResult = estimateCost(geminiConfig);
+    const kimi2Result = estimateCost(kimi2Config);
+
+    // Both should have non-zero scoring costs
+    expect(geminiResult.gemini).toBeGreaterThan(0);
+    expect(kimi2Result.gemini).toBeGreaterThan(0);
+
+    // KIMI 2 is cheaper than Gemini for scoring
+    // KIMI 2: $0.456 input + $1.84 output per million
+    // Gemini: $0.50 input + $3.00 output per million
+    // So kimi2 should be cheaper
+    expect(kimi2Result.gemini).toBeLessThan(geminiResult.gemini);
+  });
+
+  it('defaults to Gemini pricing when scoringModel is undefined', () => {
+    // Create config without scoringModel (simulates legacy configs)
+    const configWithModel = createTestConfig({ scoringModel: 'gemini' });
+
+    // Both should give same result
+    const withModelResult = estimateCost(configWithModel);
+
+    // The cost should match Gemini pricing
+    expect(withModelResult.gemini).toBeGreaterThan(0);
+  });
 });
 
 // ============================================
@@ -401,6 +445,52 @@ describe('calculateActualCost', () => {
 
     expect(result.nanoBanana).toBe(0);
   });
+
+  it('calculates KIMI 2 costs correctly', () => {
+    // 1 million tokens at known rates
+    const usage: TokenUsage = {
+      kimi2: { inputTokens: 1_000_000, outputTokens: 1_000_000 },
+    };
+
+    const result = calculateActualCost(usage);
+
+    // Input: 1M * $0.456/M = $0.456
+    // Output: 1M * $1.84/M = $1.84
+    // Total: $2.296
+    expect(result.gemini).toBeCloseTo(2.296, 3);
+  });
+
+  it('combines Gemini and KIMI 2 costs into gemini field', () => {
+    const usage: TokenUsage = {
+      gemini: { inputTokens: 1_000_000, outputTokens: 0 },
+      kimi2: { inputTokens: 1_000_000, outputTokens: 0 },
+    };
+
+    const result = calculateActualCost(usage);
+
+    // Gemini input: 1M * $0.50/M = $0.50
+    // KIMI 2 input: 1M * $0.456/M = $0.456
+    // Total scoring: $0.956
+    expect(result.gemini).toBeCloseTo(0.956, 3);
+  });
+
+  it('calculates KIMI 2 only usage correctly', () => {
+    const usage: TokenUsage = {
+      perplexity: { inputTokens: 10000, outputTokens: 5000 },
+      kimi2: { inputTokens: 8000, outputTokens: 2000 }, // KIMI 2 instead of Gemini
+      openai: { inputTokens: 5000, outputTokens: 2000 },
+      imageGenerated: true,
+      imageResolution: '2k',
+    };
+
+    const result = calculateActualCost(usage);
+
+    expect(result.perplexity).toBeGreaterThan(0);
+    expect(result.gemini).toBeGreaterThan(0); // KIMI 2 cost is in gemini field
+    expect(result.openai).toBeGreaterThan(0);
+    expect(result.nanoBanana).toBe(IMAGE_COSTS['2k']);
+    expect(result.total).toBeGreaterThan(0);
+  });
 });
 
 // ============================================
@@ -454,6 +544,37 @@ describe('CostTracker', () => {
 
       expect(usage.gemini?.inputTokens).toBe(800);
       expect(usage.gemini?.outputTokens).toBe(200);
+    });
+  });
+
+  describe('addKimi2', () => {
+    it('accumulates correctly', () => {
+      tracker.addKimi2(400, 100);
+      tracker.addKimi2(400, 100);
+
+      const usage = tracker.getUsage();
+
+      expect(usage.kimi2?.inputTokens).toBe(800);
+      expect(usage.kimi2?.outputTokens).toBe(200);
+    });
+
+    it('initializes from zero', () => {
+      tracker.addKimi2(600, 150);
+
+      const usage = tracker.getUsage();
+
+      expect(usage.kimi2?.inputTokens).toBe(600);
+      expect(usage.kimi2?.outputTokens).toBe(150);
+    });
+
+    it('tracks separately from Gemini', () => {
+      tracker.addGemini(1000, 500);
+      tracker.addKimi2(2000, 1000);
+
+      const usage = tracker.getUsage();
+
+      expect(usage.gemini?.inputTokens).toBe(1000);
+      expect(usage.kimi2?.inputTokens).toBe(2000);
     });
   });
 

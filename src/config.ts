@@ -6,7 +6,7 @@
  */
 
 import 'dotenv/config';
-import type { PipelineConfig, SourceOption, QualityProfile } from './types/index.js';
+import type { PipelineConfig, SourceOption, QualityProfile, ScoringModel } from './types/index.js';
 import {
   DEFAULT_CONFIG,
   QUALITY_PROFILES,
@@ -27,6 +27,7 @@ export const ENV_KEYS = {
   GOOGLE_AI_API_KEY: 'GOOGLE_AI_API_KEY',
   OPENAI_API_KEY: 'OPENAI_API_KEY',
   SCRAPECREATORS_API_KEY: 'SCRAPECREATORS_API_KEY',
+  OPENROUTER_API_KEY: 'OPENROUTER_API_KEY',
 } as const;
 
 /**
@@ -80,23 +81,40 @@ export interface ApiKeyValidationResult {
 }
 
 /**
- * Validate that all required API keys are present based on sources.
+ * Options for API key validation
+ */
+export interface ValidateApiKeysOptions {
+  sources: SourceOption[];
+  scoringModel?: ScoringModel;
+}
+
+/**
+ * Validate that all required API keys are present based on sources and config.
  *
  * Required keys:
  * - PERPLEXITY_API_KEY (always)
- * - GOOGLE_AI_API_KEY (always)
+ * - GOOGLE_AI_API_KEY (always, unless scoringModel is 'kimi2' and skipScoring isn't relevant here)
  * - OPENAI_API_KEY (always)
  * - SCRAPECREATORS_API_KEY (only if linkedin or x sources enabled)
+ * - OPENROUTER_API_KEY (only if scoringModel is 'kimi2')
  *
- * @param sources - The data sources that will be used
+ * @param options - Validation options with sources and optional scoringModel
  * @returns Validation result with missing keys
  */
-export function validateApiKeys(sources: SourceOption[]): ApiKeyValidationResult {
+export function validateApiKeys(options: SourceOption[] | ValidateApiKeysOptions): ApiKeyValidationResult {
+  // Handle both old (array) and new (object) signatures for backward compatibility
+  const sources = Array.isArray(options) ? options : options.sources;
+  const scoringModel = Array.isArray(options) ? 'gemini' : (options.scoringModel ?? 'gemini');
+
   const missing: string[] = [];
   const warnings: string[] = [];
 
   // Check always-required keys
   for (const key of REQUIRED_KEYS) {
+    // Skip GOOGLE_AI_API_KEY check if using kimi2 for scoring
+    if (key === 'GOOGLE_AI_API_KEY' && scoringModel === 'kimi2') {
+      continue;
+    }
     if (!hasApiKey(key)) {
       missing.push(ENV_KEYS[key]);
     }
@@ -118,6 +136,13 @@ export function validateApiKeys(sources: SourceOption[]): ApiKeyValidationResult
     );
   }
 
+  // Check OpenRouter key if using kimi2 scoring model
+  if (scoringModel === 'kimi2') {
+    if (!hasApiKey('OPENROUTER_API_KEY')) {
+      missing.push(ENV_KEYS.OPENROUTER_API_KEY);
+    }
+  }
+
   return {
     valid: missing.length === 0,
     missing,
@@ -129,11 +154,11 @@ export function validateApiKeys(sources: SourceOption[]): ApiKeyValidationResult
  * Validate API keys and throw if any are missing.
  * Fail-fast behavior for CLI startup.
  *
- * @param sources - The data sources that will be used
+ * @param options - Validation options (sources array or full options object)
  * @throws Error with clear message listing missing keys
  */
-export function requireApiKeys(sources: SourceOption[]): void {
-  const result = validateApiKeys(sources);
+export function requireApiKeys(options: SourceOption[] | ValidateApiKeysOptions): void {
+  const result = validateApiKeys(options);
 
   if (!result.valid) {
     const keyList = result.missing.join(', ');
@@ -165,6 +190,7 @@ export interface CliOptions {
   outputDir?: string;
   saveRaw?: boolean;
   imageResolution?: string;
+  scoringModel?: string;
   timeout?: string;
   verbose?: boolean;
   dryRun?: boolean;
@@ -231,6 +257,21 @@ function parseImageResolution(resStr: string): '2k' | '4k' {
     return '2k';
   }
   return normalized as '2k' | '4k';
+}
+
+/**
+ * Parse scoring model string.
+ * Warns about invalid scoring model values and defaults to 'gemini'.
+ */
+function parseScoringModel(modelStr: string): ScoringModel {
+  const normalized = modelStr.toLowerCase();
+  if (normalized !== 'gemini' && normalized !== 'kimi2') {
+    logWarning(
+      `Invalid scoring model '${modelStr}' ignored. Using 'gemini'. Valid options: gemini, kimi2`
+    );
+    return 'gemini';
+  }
+  return normalized as ScoringModel;
 }
 
 /**
@@ -304,6 +345,10 @@ export function buildConfig(options: CliOptions): PipelineConfig {
     config.imageResolution = parseImageResolution(options.imageResolution);
   }
 
+  if (options.scoringModel !== undefined) {
+    config.scoringModel = parseScoringModel(options.scoringModel);
+  }
+
   if (options.timeout !== undefined) {
     const parsed = parseInt(options.timeout, 10);
     if (!isNaN(parsed) && parsed > 0) {
@@ -366,7 +411,10 @@ export function buildConfig(options: CliOptions): PipelineConfig {
  * Returns validation result without throwing.
  */
 export function validateConfig(config: PipelineConfig): ApiKeyValidationResult {
-  return validateApiKeys(config.sources);
+  return validateApiKeys({
+    sources: config.sources,
+    scoringModel: config.scoringModel,
+  });
 }
 
 /**
@@ -374,7 +422,10 @@ export function validateConfig(config: PipelineConfig): ApiKeyValidationResult {
  * Use this for fail-fast CLI behavior.
  */
 export function requireValidConfig(config: PipelineConfig): void {
-  requireApiKeys(config.sources);
+  requireApiKeys({
+    sources: config.sources,
+    scoringModel: config.scoringModel,
+  });
 }
 
 // ============================================
@@ -388,4 +439,4 @@ export {
   STAGE_TIMEOUT_MS,
 } from './types/index.js';
 
-export type { PipelineConfig, QualityProfile, SourceOption } from './types/index.js';
+export type { PipelineConfig, QualityProfile, SourceOption, ScoringModel } from './types/index.js';

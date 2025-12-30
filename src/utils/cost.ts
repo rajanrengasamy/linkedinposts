@@ -17,6 +17,7 @@ import { createEmptyCostBreakdown } from '../schemas/index.js';
  * Cost per million tokens for each API
  * @see https://ai.google.dev/gemini-api/docs/gemini-3
  * @see https://docs.perplexity.ai/guides/pricing
+ * @see https://openrouter.ai/moonshotai/kimi-k2
  */
 export const TOKEN_COSTS = {
   perplexity: {
@@ -26,6 +27,15 @@ export const TOKEN_COSTS = {
   gemini: {
     inputPerMillion: 0.5, // Gemini 3 Flash Preview input ($0.50/1M)
     outputPerMillion: 3.0, // Gemini 3 Flash Preview output ($3/1M)
+  },
+  /**
+   * OpenRouter KIMI K2 pricing (per million tokens)
+   * Model: moonshotai/kimi-k2 via OpenRouter
+   * @see https://openrouter.ai/moonshotai/kimi-k2
+   */
+  kimi2: {
+    inputPerMillion: 0.456, // KIMI K2 input ($0.456/1M via Novita)
+    outputPerMillion: 1.84, // KIMI K2 output ($1.84/1M via Novita)
   },
   openai: {
     inputPerMillion: 10.0, // GPT-5.2 Thinking input
@@ -144,16 +154,25 @@ function estimatePerplexityCost(config: PipelineConfig): number {
 }
 
 /**
- * Estimate Gemini costs for scoring
+ * Estimate scoring model costs (Gemini or KIMI 2)
+ *
+ * Uses the scoringModel config option to determine which pricing to apply:
+ * - 'gemini' (default): Uses Gemini 3 Flash pricing
+ * - 'kimi2': Uses OpenRouter KIMI K2 pricing
  */
-function estimateGeminiCost(config: PipelineConfig): number {
+function estimateScoringCost(config: PipelineConfig): number {
   if (config.skipScoring) return 0;
 
   const items = estimateScoringItems(config);
   const inputTokens = items * TOKENS_PER_ITEM.scoring.inputPerItem;
   const outputTokens = items * TOKENS_PER_ITEM.scoring.outputPerItem;
 
-  return calculateTokenCost(inputTokens, outputTokens, TOKEN_COSTS.gemini);
+  // Select pricing based on scoringModel config
+  const pricing = config.scoringModel === 'kimi2'
+    ? TOKEN_COSTS.kimi2
+    : TOKEN_COSTS.gemini;
+
+  return calculateTokenCost(inputTokens, outputTokens, pricing);
 }
 
 /**
@@ -190,15 +209,18 @@ function estimateNanaBananaCost(config: PipelineConfig): number {
  */
 export function estimateCost(config: PipelineConfig): CostBreakdown {
   const perplexity = estimatePerplexityCost(config);
-  const gemini = estimateGeminiCost(config);
+  // Scoring cost: uses Gemini or KIMI 2 depending on config.scoringModel
+  // Cost breakdown field is 'gemini' for backward compatibility
+  const scoring = estimateScoringCost(config);
   const openai = estimateOpenAICost(config);
   const nanoBanana = estimateNanaBananaCost(config);
 
-  const total = perplexity + gemini + openai + nanoBanana;
+  const total = perplexity + scoring + openai + nanoBanana;
 
   return {
     perplexity: Math.round(perplexity * 10000) / 10000,
-    gemini: Math.round(gemini * 10000) / 10000,
+    // Field named 'gemini' for backward compatibility, but includes KIMI 2 if configured
+    gemini: Math.round(scoring * 10000) / 10000,
     openai: Math.round(openai * 10000) / 10000,
     nanoBanana: Math.round(nanoBanana * 10000) / 10000,
     total: Math.round(total * 10000) / 10000,
@@ -211,6 +233,8 @@ export function estimateCost(config: PipelineConfig): CostBreakdown {
 export interface TokenUsage {
   perplexity?: { inputTokens: number; outputTokens: number };
   gemini?: { inputTokens: number; outputTokens: number };
+  /** KIMI K2 token usage (via OpenRouter) */
+  kimi2?: { inputTokens: number; outputTokens: number };
   openai?: { inputTokens: number; outputTokens: number };
   imageGenerated?: boolean;
   imageResolution?: ImageResolution;
@@ -226,7 +250,7 @@ export interface TokenUsage {
  */
 export function calculateActualCost(usage: TokenUsage): CostBreakdown {
   let perplexity = 0;
-  let gemini = 0;
+  let scoringCost = 0; // Combined Gemini + KIMI 2 costs
   let openai = 0;
   let nanoBanana = 0;
 
@@ -238,11 +262,21 @@ export function calculateActualCost(usage: TokenUsage): CostBreakdown {
     );
   }
 
+  // Gemini scoring costs
   if (usage.gemini) {
-    gemini = calculateTokenCost(
+    scoringCost += calculateTokenCost(
       usage.gemini.inputTokens,
       usage.gemini.outputTokens,
       TOKEN_COSTS.gemini
+    );
+  }
+
+  // KIMI K2 scoring costs (via OpenRouter)
+  if (usage.kimi2) {
+    scoringCost += calculateTokenCost(
+      usage.kimi2.inputTokens,
+      usage.kimi2.outputTokens,
+      TOKEN_COSTS.kimi2
     );
   }
 
@@ -258,11 +292,12 @@ export function calculateActualCost(usage: TokenUsage): CostBreakdown {
     nanoBanana = IMAGE_COSTS[usage.imageResolution];
   }
 
-  const total = perplexity + gemini + openai + nanoBanana;
+  const total = perplexity + scoringCost + openai + nanoBanana;
 
   return {
     perplexity: Math.round(perplexity * 10000) / 10000,
-    gemini: Math.round(gemini * 10000) / 10000,
+    // Field named 'gemini' for backward compatibility, but includes KIMI 2 if used
+    gemini: Math.round(scoringCost * 10000) / 10000,
     openai: Math.round(openai * 10000) / 10000,
     nanoBanana: Math.round(nanoBanana * 10000) / 10000,
     total: Math.round(total * 10000) / 10000,
@@ -295,6 +330,17 @@ export class CostTracker {
     }
     this.usage.gemini.inputTokens += inputTokens;
     this.usage.gemini.outputTokens += outputTokens;
+  }
+
+  /**
+   * Add KIMI K2 token usage (via OpenRouter)
+   */
+  addKimi2(inputTokens: number, outputTokens: number): void {
+    if (!this.usage.kimi2) {
+      this.usage.kimi2 = { inputTokens: 0, outputTokens: 0 };
+    }
+    this.usage.kimi2.inputTokens += inputTokens;
+    this.usage.kimi2.outputTokens += outputTokens;
   }
 
   /**

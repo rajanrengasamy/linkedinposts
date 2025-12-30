@@ -27,6 +27,11 @@ import {
   logSuccess,
   logInfo,
 } from '../utils/logger.js';
+import {
+  isLongPrompt,
+  breakdownForSocialSearch,
+  type PromptBreakdownResult,
+} from '../prompts/index.js';
 
 // ============================================
 // Types
@@ -126,6 +131,56 @@ function countBySource(items: RawItem[], source: SourceOption): number {
   return items.filter((item) => item.source === source).length;
 }
 
+/**
+ * Collect items from a single source, using prompt breakdown for social sources.
+ *
+ * For social sources (linkedin, x) with a valid breakdown:
+ * - Runs the collector once per social query
+ * - Merges and deduplicates results
+ *
+ * For web sources or when no breakdown is available:
+ * - Uses the original query directly
+ *
+ * @param collector - The collector to run
+ * @param originalQuery - The original user query
+ * @param config - Pipeline configuration
+ * @param breakdown - Optional prompt breakdown result
+ * @returns Combined raw items from the collector
+ */
+async function collectWithBreakdown(
+  collector: Collector,
+  originalQuery: string,
+  config: PipelineConfig,
+  breakdown: PromptBreakdownResult | null
+): Promise<RawItem[]> {
+  // For social sources with valid breakdown, collect from each query
+  const isSocialSource = collector.name === 'linkedin' || collector.name === 'x';
+
+  if (isSocialSource && breakdown?.wasBreakdown && breakdown.socialQueries.length > 0) {
+    logVerbose(`${collector.name}: Using ${breakdown.socialQueries.length} broken-down queries`);
+
+    const allItems: RawItem[] = [];
+
+    // Run collector for each social query sequentially to avoid rate limits
+    for (const socialQuery of breakdown.socialQueries) {
+      logVerbose(`${collector.name}: Searching for "${socialQuery}"`);
+      try {
+        const items = await collector.fn(socialQuery, config);
+        allItems.push(...items);
+      } catch (error) {
+        // Log and continue with other queries
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        logWarning(`${collector.name} query "${socialQuery}" failed: ${errorMsg}`);
+      }
+    }
+
+    return allItems;
+  }
+
+  // For web sources or no breakdown: use original query
+  return collector.fn(originalQuery, config);
+}
+
 // ============================================
 // Main Orchestrator
 // ============================================
@@ -170,9 +225,27 @@ export async function collectAll(
   // Log which collectors we're running
   logVerbose(`Running ${collectors.length} collector(s): ${collectors.map((c) => c.name).join(', ')}`);
 
-  // Run all collectors in parallel
+  // Check if prompt needs breakdown for social sources (Section 16.1)
+  let promptBreakdown: PromptBreakdownResult | null = null;
+  const hasSocialSources = config.sources.includes('linkedin') || config.sources.includes('x');
+
+  if (hasSocialSources && isLongPrompt(query)) {
+    logVerbose('Long prompt detected, breaking down for social search...');
+    try {
+      promptBreakdown = await breakdownForSocialSearch(query);
+      if (promptBreakdown.wasBreakdown) {
+        logVerbose(`Generated ${promptBreakdown.socialQueries.length} social search queries`);
+      }
+    } catch (error) {
+      // Log warning but continue with original query
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logWarning(`Prompt breakdown failed: ${errorMsg}. Using original query for social sources.`);
+    }
+  }
+
+  // Run all collectors in parallel, using appropriate query per source type
   const settledResults = await Promise.allSettled(
-    collectors.map((collector) => collector.fn(query, config))
+    collectors.map((collector) => collectWithBreakdown(collector, query, config, promptBreakdown))
   );
 
   // Process results

@@ -62,8 +62,11 @@ export function createProgram(): Command {
     .option('--save-raw', 'Save raw API responses')
     .option('--image-resolution <res>', 'Image resolution: 2k|4k', '2k')
 
+    // Model Selection
+    .option('--scoring-model <model>', 'Scoring model: gemini|kimi2', 'gemini')
+
     // Performance
-    .option('--timeout <seconds>', 'Pipeline timeout in seconds', '180')
+    .option('--timeout <seconds>', 'Pipeline timeout in seconds', '600')
     .option('--print-cost-estimate', 'Print cost estimate and exit')
 
     // Debug
@@ -128,6 +131,7 @@ interface CommanderOptions {
   outputDir?: string;
   saveRaw?: boolean;
   imageResolution?: string;
+  scoringModel?: string;
   timeout?: string;
   printCostEstimate?: boolean;
   verbose?: boolean;
@@ -176,6 +180,7 @@ function isValidCommanderOptions(opts: Record<string, unknown>): boolean {
     stringOrUndef(opts.outputDir) &&
     boolOrUndef(opts.saveRaw) &&
     stringOrUndef(opts.imageResolution) &&
+    stringOrUndef(opts.scoringModel) &&
     stringOrUndef(opts.timeout) &&
     boolOrUndef(opts.printCostEstimate) &&
     boolOrUndef(opts.verbose) &&
@@ -235,6 +240,7 @@ export function parseCliOptions(
     outputDir: commanderOpts.outputDir,
     saveRaw: commanderOpts.saveRaw,
     imageResolution: commanderOpts.imageResolution,
+    scoringModel: commanderOpts.scoringModel,
     timeout: commanderOpts.timeout,
     verbose: commanderOpts.verbose,
     dryRun: commanderOpts.dryRun,

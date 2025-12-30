@@ -318,7 +318,10 @@ export const ValidationResponseSchema = z.object({
         verified: z.boolean(),
 
         /** Source URL where the quote was found - MAJ-1: Only HTTP(S) allowed */
-        sourceUrl: HttpUrlSchema.optional(),
+        // LLMs often return null instead of omitting optional fields, so accept both
+        sourceUrl: HttpUrlSchema.nullable()
+          .optional()
+          .transform((val) => val ?? undefined),
       })
       .refine((data) => !data.verified || (data.verified && !!data.sourceUrl), {
         message: 'sourceUrl is required when verified is true',
@@ -532,6 +535,7 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no expla
  * Handles common LLM quirks:
  * - Array wrapping: If LLM returns [obj] instead of obj, extracts first element
  * - Null fields: Schema transforms null to undefined for optional fields
+ * - Non-object returns: If LLM returns primitive, throws informative error
  *
  * @param content - Raw response content from Perplexity
  * @returns Parsed and validated ValidationResponse
@@ -548,6 +552,15 @@ export function parseValidationResponse(content: string): ValidationResponse {
       throw new Error('Validation response is empty array');
     }
     parsed = parsed[0];
+  }
+
+  // Handle LLM quirk: sometimes returns primitive value instead of object
+  // This happens when LLM doesn't follow JSON format instructions
+  if (parsed === null || typeof parsed !== 'object') {
+    throw new Error(
+      `Validation response is not an object (got ${typeof parsed}). ` +
+        `LLM may have returned malformed response. Raw: ${String(parsed).slice(0, 100)}`
+    );
   }
 
   // Validate against schema

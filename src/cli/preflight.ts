@@ -7,7 +7,7 @@
 
 import type { PipelineConfig } from '../types/index.js';
 import type { ApiKeyValidationResult } from '../config.js';
-import { validateApiKeys } from '../config.js';
+import { validateConfig } from '../config.js';
 import { estimateCost } from '../utils/cost.js';
 import {
   logApiKeyStatus,
@@ -66,8 +66,8 @@ export function runPreflightChecks(
   config: PipelineConfig,
   options: PreflightOptions
 ): PreflightResult {
-  // Step 1: Always validate API keys first
-  const apiKeyValidation = validateApiKeys(config.sources);
+  // Step 1: Always validate API keys first (includes scoringModel check)
+  const apiKeyValidation = validateConfig(config);
 
   // Log API key status
   logApiKeyStatus(apiKeyValidation.valid, apiKeyValidation.missing, apiKeyValidation.warnings);
@@ -204,5 +204,5 @@ export function printDryRunSummary(config: PipelineConfig): void {
  * @returns API key validation result
  */
 export function validateApiKeysOnly(config: PipelineConfig): ApiKeyValidationResult {
-  return validateApiKeys(config.sources);
+  return validateConfig(config);
 }
