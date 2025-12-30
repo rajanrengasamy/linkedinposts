@@ -1,5 +1,6 @@
 @karpathy (Andrej Karpathy, ex-OpenAI/Tesla, deep learning expert)
 @sama (Sam Altman, OpenAI CEO)
+@natebjones (Nate Jones, Head of Product at Amazon Prime Video and his current work in AI strategy)
 @AndrewYNg (Andrew Ng, AI educator, Coursera co-founder)
 @ylecun (Yann LeCun, Meta Chief AI Scientist)
 @geoffreyhinton (Geoffrey Hinton, deep learning pioneer)

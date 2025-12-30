@@ -79,7 +79,7 @@ interface OpenRouterRequest {
     role: 'system' | 'user' | 'assistant';
     content: string;
   }>;
-  reasoning?: 'enabled';
+  reasoning?: { effort: 'high' | 'medium' | 'low' | 'minimal' | 'none' };
 }
 
 /**
@@ -248,7 +248,7 @@ export async function makeOpenRouterRequest(
         content: prompt,
       },
     ],
-    reasoning: 'enabled', // Enable extended thinking for better analysis
+    reasoning: { effort: 'high' }, // Enable extended thinking for better analysis
   };
 
   // Make API request with retry logic

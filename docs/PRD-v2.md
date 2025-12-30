@@ -1,7 +1,7 @@
 # PRD: LinkedIn Post Generator (Phase 0 - CLI)
 
-**Version**: 2.0
-**Last Updated**: 2025-12-26
+**Version**: 2.2
+**Last Updated**: 2025-12-30
 **Status**: Draft
 **Schema Version**: 1.0.0
 
@@ -21,14 +21,16 @@
 10. [Performance & Cost Controls](#performance--cost-controls)
 11. [Security & Privacy](#security--privacy)
 12. [CLI Interface](#cli-interface)
-13. [Output Files](#output-files)
-14. [Project Structure](#project-structure)
-15. [Implementation Steps](#implementation-steps)
-16. [Testing Strategy](#testing-strategy)
-17. [Success Criteria](#success-criteria)
-18. [Definition of Done](#definition-of-done)
-19. [Open Questions](#open-questions)
-20. [Future Phases](#future-phases)
+13. [Multi-Post Generation](#multi-post-generation)
+14. [Prompt Refinement Phase](#prompt-refinement-phase)
+15. [Output Files](#output-files)
+16. [Project Structure](#project-structure)
+17. [Implementation Steps](#implementation-steps)
+18. [Testing Strategy](#testing-strategy)
+19. [Success Criteria](#success-criteria)
+20. [Definition of Done](#definition-of-done)
+21. [Open Questions](#open-questions)
+22. [Future Phases](#future-phases)
 
 ---
 
@@ -664,6 +666,10 @@ Options:
   --save-raw                 Save raw API responses
   --image-resolution <res>   Image resolution: 2k|4k (default: 2k)
 
+  # Multi-Post Generation
+  --post-count <n>           Number of posts to generate, 1-3 (default: 1)
+  --post-style <style>       Post style: series|variations (default: variations)
+
   # Performance
   --timeout <seconds>        Pipeline timeout (default: 180)
   --print-cost-estimate      Print cost estimate and exit
@@ -696,7 +702,184 @@ npx tsx src/index.ts "AI trends" --save-raw --verbose
 
 # Cost check before running
 npx tsx src/index.ts "AI trends" --print-cost-estimate
+
+# Generate 3 post variations for A/B testing
+npx tsx src/index.ts "AI trends" --post-count 3
+
+# Generate 3-part series for deep-dive topic
+npx tsx src/index.ts "AI trends" --post-count 3 --post-style series
+
+# 3 variations without images (save costs)
+npx tsx src/index.ts "AI trends" --post-count 3 --skip-image
 ```
+
+---
+
+## Multi-Post Generation
+
+The tool supports generating multiple LinkedIn posts from a single pipeline run, useful for A/B testing hooks or creating multi-part content series.
+
+### Post Styles
+
+| Style | Description | Use Case |
+|-------|-------------|----------|
+| `variations` (default) | Same topic, different angles/hooks. Each post stands alone. | A/B testing, picking the best hook |
+| `series` | Connected multi-part thread (Part 1/3, 2/3, 3/3). Posts build on each other. | Deep-dive topics needing more than 3000 chars |
+
+### How It Works
+
+**Variations Mode:**
+- GPT generates N distinct posts about the same topic
+- Each post uses a DIFFERENT opening hook/angle
+- Posts use different subsets of the verified claims
+- No key quotes are repeated across posts
+
+**Series Mode:**
+- GPT generates a connected N-part series
+- Part 1: Introduction and context
+- Part 2: Deep dive / main insights
+- Part 3: Conclusions and call-to-action
+- Each part references its position (e.g., "Part 1/3: ...")
+- Earlier parts end with teasers for the next
+
+### Output Files (Multi-Post)
+
+When `--post-count` > 1:
+
+```
+output/{timestamp}/
+├── synthesis.json              # Contains all posts
+├── linkedin_post_1.md          # Individual post files
+├── linkedin_post_2.md
+├── linkedin_post_3.md
+├── linkedin_posts_combined.md  # All posts in one file
+├── infographic_1.png           # One infographic per post
+├── infographic_2.png
+├── infographic_3.png
+├── sources.json
+├── sources.md
+└── pipeline_status.json
+```
+
+### Cost Implications
+
+| Posts | Est. GPT Cost | Image Cost (2K) | Total |
+|-------|---------------|-----------------|-------|
+| 1     | ~$0.10-0.30   | ~$0.14          | ~$0.24-0.44 |
+| 2     | ~$0.12-0.38   | ~$0.28          | ~$0.40-0.66 |
+| 3     | ~$0.15-0.45   | ~$0.42          | ~$0.57-0.87 |
+
+**Note:** A single GPT call generates all posts (more efficient than N separate calls). Use `--skip-image` to reduce costs when testing.
+
+### Constraints
+
+- Maximum 3 posts per run (cost control)
+- Each post still limited to 3000 characters
+- Each post must have 3-5 hashtags
+- All quotes must have source URLs
+
+---
+
+## Prompt Refinement Phase
+
+The pipeline includes an intelligent prompt refinement phase that runs before data collection. This phase uses LLM analysis to optimize user prompts for better search results and content generation.
+
+### How It Works
+
+```
+User Prompt
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              STAGE 0: PROMPT REFINEMENT (Interactive)            │
+│                    [Skip with --skip-refinement]                 │
+│                                                                  │
+│  1. LLM analyzes prompt for clarity and specificity              │
+│  2. If CLEAR: Suggests optimized version                         │
+│  3. If AMBIGUOUS: Asks clarifying questions via CLI              │
+│  4. User confirms refined prompt before proceeding               │
+│                                                                  │
+│  Output: Refined prompt string                                   │
+└─────────────────────────────────────────────────────────────────┘
+    │
+    ▼
+[Existing pipeline continues: Collection → Validation → ...]
+```
+
+### Refinement Models
+
+| Model | Option Value | Provider | Use Case |
+|-------|--------------|----------|----------|
+| Gemini 3.0 Flash | `gemini` (default) | Google | Fast, cost-effective |
+| GPT-5.2 | `gpt` | OpenAI | Most capable reasoning |
+| Claude Sonnet 4.5 | `claude` | Anthropic | Balanced reasoning |
+| Kimi 2 | `kimi2` | OpenRouter | Deep reasoning, extended context |
+
+### CLI Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--skip-refinement` | Skip prompt refinement phase | false (refinement ON) |
+| `--refinement-model <model>` | Model: gemini\|gpt\|claude\|kimi2 | gemini |
+
+### Prompt Analysis Criteria
+
+The LLM evaluates prompts on:
+- **Topic specificity**: Is the topic concrete enough to research?
+- **Audience clarity**: Who is the LinkedIn audience?
+- **Angle/perspective**: What unique angle should the post take?
+- **Timeframe**: Is there a relevant time context?
+- **Tone expectations**: Professional, thought-leadership, personal?
+
+### Clarifying Questions
+
+If the prompt is ambiguous, the system asks 2-4 targeted questions:
+- Questions are displayed in the CLI
+- User answers via stdin
+- Answers are incorporated into the refined prompt
+- Maximum 3 refinement iterations
+
+### Example Flow
+
+```bash
+$ npx tsx src/index.ts "AI trends"
+
+Analyzing prompt...
+
+I need some clarification:
+  1. Which industry should the AI trends focus on? (healthcare, finance, etc.)
+  2. Are you looking for current trends (2025) or emerging predictions?
+  3. Should this be thought-leadership style or data-driven insights?
+
+Your answers:
+1: healthcare
+2: current trends with some predictions
+3: data-driven with expert quotes
+
+Refined prompt:
+"AI trends in healthcare 2025: current adoption patterns and near-term
+predictions, with emphasis on data-driven insights and expert perspectives"
+
+Accept this refined prompt? [Y/n/feedback]:
+```
+
+### API Key Requirements
+
+| Model | Required Key |
+|-------|-------------|
+| gemini | GOOGLE_AI_API_KEY |
+| gpt | OPENAI_API_KEY |
+| claude | ANTHROPIC_API_KEY |
+| kimi2 | OPENROUTER_API_KEY |
+
+### Failure Handling
+
+| Failure | Behavior |
+|---------|----------|
+| LLM error | Retry 3x with backoff, then skip refinement with warning |
+| Parse error | Retry with fix prompt, then skip refinement |
+| User Ctrl+C | Use original prompt, continue pipeline |
+| Timeout | Skip refinement with warning, use original |
 
 ---
 
@@ -967,11 +1150,13 @@ Checks:
 
 The following limitations exist in the current implementation:
 
-1. **LinkedIn Collection**: Uses a curated list of profiles rather than dynamic query search. The query parameter is currently ignored in favor of hardcoded profile handles.
+1. **LinkedIn Collection**: Uses a curated list of profiles rather than dynamic query search. The query parameter is used for relevance filtering but not for API search. Content is collected from profile activity feeds and articles.
 
 2. **Web Items Missing publishedAt**: Web items collected via Perplexity API do not include `publishedAt` timestamps. This is a limitation of the Perplexity API which does not return publication dates for search results.
 
-3. **Twitter Community Tweets**: The `/v1/twitter/community/tweets` endpoint is not currently implemented. Only `/v1/twitter/search` is available.
+3. **LinkedIn Activity Items Missing publishedAt**: LinkedIn activity items (posts/shares) from the ScrapeCreators API do not include timestamps. LinkedIn articles do include `datePublished`.
+
+4. **Twitter Community Tweets**: The `/v1/twitter/community/tweets` endpoint is not currently implemented. Only `/v1/twitter/search` is available.
 
 ---
 
@@ -1026,6 +1211,21 @@ SCRAPECREATORS_API_KEY=your_key_here
 ---
 
 ## Changelog
+
+### v2.2.0 (2025-12-30)
+- Added Prompt Refinement Phase section (Section 14)
+- New CLI options: `--skip-refinement` and `--refinement-model <model>`
+- Support for 4 refinement models: Gemini 3.0 Flash (default), GPT-5.2, Claude Sonnet 4.5, Kimi 2
+- Interactive prompt clarification with hybrid LLM analysis
+- Always-on by default with user confirmation before proceeding
+
+### v2.1.0 (2025-12-30)
+- Added Multi-Post Generation section (Section 13)
+- New CLI options: `--post-count` (1-3) and `--post-style` (series|variations)
+- Support for generating multiple post variations for A/B testing
+- Support for connected multi-part series posts
+- Updated output structure for multi-post runs
+- Added cost implications for multi-post generation
 
 ### v2.0.0 (2025-12-26)
 - Added Compliance & Legal section with ToS considerations

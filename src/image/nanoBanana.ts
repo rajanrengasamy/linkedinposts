@@ -15,7 +15,7 @@
  */
 
 import { GoogleGenAI } from '@google/genai';
-import type { InfographicBrief, InfographicStyle } from '../schemas/synthesisResult.js';
+import type { InfographicBrief, InfographicStyle, LinkedInPost } from '../schemas/synthesisResult.js';
 import type { PipelineConfig, GeminiImageResponse, ImageResolution } from '../types/index.js';
 import { STAGE_TIMEOUT_MS, IMAGE_MODEL, IMAGE_MODEL_FALLBACK, RESOLUTION_TO_IMAGE_SIZE } from '../types/index.js';
 import { sanitizePromptContent } from '../utils/sanitization.js';
@@ -722,6 +722,45 @@ export async function generateInfographic(
     logWarning(`Image generation failed: ${sanitize(errorMessage)}`);
     return null;
   }
+}
+
+/**
+ * Generate infographics for multiple posts.
+ * Non-blocking: failures don't halt pipeline.
+ *
+ * @param posts - Array of LinkedIn posts with infographic briefs
+ * @param config - Pipeline configuration
+ * @returns Array of results (null entries indicate failed/skipped generation)
+ */
+export async function generateMultipleInfographics(
+  posts: LinkedInPost[],
+  config: PipelineConfig
+): Promise<Array<{ postNumber: number; buffer: Buffer } | null>> {
+  if (config.skipImage) {
+    logVerbose('Image generation skipped');
+    return posts.map(() => null);
+  }
+
+  const results: Array<{ postNumber: number; buffer: Buffer } | null> = [];
+
+  for (const post of posts) {
+    logVerbose(`Generating infographic ${post.postNumber}/${post.totalPosts}`);
+
+    try {
+      const buffer = await generateInfographic(post.infographicBrief, config);
+      results.push(buffer ? { postNumber: post.postNumber, buffer } : null);
+    } catch (error) {
+      logWarning(
+        `Infographic ${post.postNumber} failed: ${error instanceof Error ? error.message : 'Unknown'}`
+      );
+      results.push(null);
+    }
+  }
+
+  const success = results.filter((r) => r !== null).length;
+  logVerbose(`Generated ${success}/${posts.length} infographics`);
+
+  return results;
 }
 
 /**

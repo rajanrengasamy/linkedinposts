@@ -29,6 +29,7 @@ import { generateContentHash, normalizeUrl, normalizeTimestamp } from '../proces
 import { withRetry, DEFAULT_RETRY_OPTIONS } from '../utils/retry.js';
 import { logVerbose, logWarning, logInfo } from '../utils/logger.js';
 import { generateStableId } from '../utils/stableId.js';
+import { loadLinkedInProfiles, selectLinkedInProfiles } from '../utils/handleLoader.js';
 
 // ============================================
 // Constants
@@ -56,7 +57,7 @@ interface LinkedInAuthor {
 }
 
 /**
- * LinkedIn post from profile response
+ * LinkedIn post from profile response (legacy format)
  */
 interface LinkedInProfilePost {
   url?: string;
@@ -70,7 +71,31 @@ interface LinkedInProfilePost {
 }
 
 /**
+ * LinkedIn activity item from profile response
+ * This is the actual format returned by ScrapeCreators API
+ */
+interface LinkedInActivityItem {
+  title?: string;         // Post content/text
+  activityType?: string;  // e.g., "Shared by Satya Nadella", "Liked by Satya Nadella"
+  link?: string;          // Post URL
+  image?: string;         // Optional image URL
+}
+
+/**
+ * LinkedIn article from profile response
+ */
+interface LinkedInArticle {
+  headline?: string;
+  author?: string;
+  datePublished?: string;
+  url?: string;
+  articleBody?: string;
+  image?: string;
+}
+
+/**
  * LinkedIn profile API response structure
+ * Updated to match actual ScrapeCreators API response format
  */
 interface LinkedInProfileResponse {
   success?: boolean;
@@ -79,7 +104,14 @@ interface LinkedInProfileResponse {
   handle?: string;
   url?: string;
   followers?: number;
+  about?: string;
+  location?: string;
+  // Legacy format (may be empty)
   posts?: LinkedInProfilePost[];
+  recentPosts?: LinkedInProfilePost[];
+  // Actual data from ScrapeCreators API
+  activity?: LinkedInActivityItem[];
+  articles?: LinkedInArticle[];
 }
 
 /**
@@ -394,6 +426,138 @@ function profilePostToRawItem(
 }
 
 /**
+ * Convert a LinkedIn activity item to a RawItem.
+ * Activity items are the actual posts/shares from ScrapeCreators API.
+ *
+ * @param activity - Activity item from profile response
+ * @param profileData - Parent profile data for author info
+ * @param retrievedAt - ISO timestamp when data was retrieved
+ * @returns RawItem or null if essential data is missing
+ */
+function activityToRawItem(
+  activity: LinkedInActivityItem,
+  profileData: LinkedInProfileResponse,
+  retrievedAt: string
+): RawItem | null {
+  // Content is required
+  const content = activity.title || '';
+  if (!content.trim()) {
+    logVerbose('Skipping LinkedIn activity: no content');
+    return null;
+  }
+
+  // sourceUrl is required
+  const sourceUrl = activity.link;
+  if (!sourceUrl) {
+    logVerbose('Skipping LinkedIn activity: no URL');
+    return null;
+  }
+
+  // Normalize URL
+  let normalizedUrl: string;
+  try {
+    normalizedUrl = normalizeUrl(sourceUrl);
+  } catch {
+    logVerbose(`Skipping LinkedIn activity: invalid URL: ${sourceUrl}`);
+    return null;
+  }
+
+  // Generate content hash
+  const contentHash = generateContentHash(content);
+
+  // Build the RawItem with stable ID
+  const item: RawItem = {
+    id: generateStableId(normalizedUrl, contentHash, undefined),
+    schemaVersion: SCHEMA_VERSION,
+    source: 'linkedin',
+    sourceUrl: normalizedUrl,
+    retrievedAt,
+    content,
+    contentHash,
+    author: profileData.name,
+    authorHandle: normalizeLinkedInHandle(profileData.handle),
+    authorUrl: safeNormalizeAuthorUrl(profileData.url),
+    engagement: createDefaultEngagement(),
+  };
+
+  return item;
+}
+
+/**
+ * Convert a LinkedIn article to a RawItem.
+ * Articles are LinkedIn Pulse articles with headlines and dates.
+ *
+ * @param article - Article from profile response
+ * @param profileData - Parent profile data for author info
+ * @param retrievedAt - ISO timestamp when data was retrieved
+ * @returns RawItem or null if essential data is missing
+ */
+function articleToRawItem(
+  article: LinkedInArticle,
+  profileData: LinkedInProfileResponse,
+  retrievedAt: string
+): RawItem | null {
+  // Content is required - use headline + articleBody
+  const content = article.headline || '';
+  if (!content.trim()) {
+    logVerbose('Skipping LinkedIn article: no headline');
+    return null;
+  }
+
+  // sourceUrl is required
+  const sourceUrl = article.url;
+  if (!sourceUrl) {
+    logVerbose('Skipping LinkedIn article: no URL');
+    return null;
+  }
+
+  // Normalize URL
+  let normalizedUrl: string;
+  try {
+    normalizedUrl = normalizeUrl(sourceUrl);
+  } catch {
+    logVerbose(`Skipping LinkedIn article: invalid URL: ${sourceUrl}`);
+    return null;
+  }
+
+  // Generate content hash
+  const contentHash = generateContentHash(content);
+
+  // Parse publication date if available
+  let publishedAt: string | undefined;
+  if (article.datePublished) {
+    try {
+      publishedAt = normalizeTimestamp(article.datePublished);
+    } catch {
+      logVerbose(`Could not parse article datePublished: ${article.datePublished}`);
+    }
+  }
+
+  // Build the RawItem with stable ID
+  const item: RawItem = {
+    id: generateStableId(normalizedUrl, contentHash, publishedAt),
+    schemaVersion: SCHEMA_VERSION,
+    source: 'linkedin',
+    sourceUrl: normalizedUrl,
+    retrievedAt,
+    content,
+    contentHash,
+    title: article.headline,
+    author: article.author || profileData.name,
+    authorHandle: normalizeLinkedInHandle(profileData.handle),
+    authorUrl: safeNormalizeAuthorUrl(profileData.url),
+    engagement: createDefaultEngagement(),
+  };
+
+  // Add optional publishedAt
+  if (publishedAt) {
+    item.publishedAt = publishedAt;
+  }
+
+  return item;
+}
+
+/**
  * Validate an item against RawItemSchema.
  * Returns the item if valid, null if invalid.
  *
@@ -414,6 +578,19 @@ function validateItem(item: RawItem): RawItem | null {
 // ============================================
 
 /**
+ * Convert a LinkedIn handle to a profile URL.
+ * ScrapeCreators API may accept either handle or url parameter.
+ *
+ * @param handle - LinkedIn profile handle/username (e.g., 'satyanadella')
+ * @returns Full LinkedIn profile URL
+ */
+function handleToProfileUrl(handle: string): string {
+  // Remove @ prefix if present
+  const cleanHandle = handle.startsWith('@') ? handle.slice(1) : handle;
+  return `https://linkedin.com/in/${cleanHandle}`;
+}
+
+/**
  * Fetch posts from a LinkedIn profile.
  *
  * NOTE: The ScrapeCreators API returns recent posts as part of the profile data.
@@ -423,15 +600,16 @@ function validateItem(item: RawItem): RawItem | null {
  * @returns Array of RawItem from the profile's posts
  */
 async function fetchProfilePosts(handle: string): Promise<RawItem[]> {
-  const url = `${SCRAPECREATORS_BASE_URL}/v1/linkedin/profile`;
+  const apiEndpoint = `${SCRAPECREATORS_BASE_URL}/v1/linkedin/profile`;
+  const profileUrl = handleToProfileUrl(handle);
   const retrievedAt = new Date().toISOString();
 
-  logVerbose(`Fetching LinkedIn profile: ${handle}`);
+  logVerbose(`Fetching LinkedIn profile: ${handle} (${profileUrl})`);
 
   const result = await withRetry(
     async () => {
-      const response = await axios.get<LinkedInProfileResponse>(url, {
-        params: { handle },
+      const response = await axios.get<LinkedInProfileResponse>(apiEndpoint, {
+        params: { url: profileUrl },
         headers: buildHeaders(),
         timeout: 30000,
       });
@@ -455,13 +633,45 @@ async function fetchProfilePosts(handle: string): Promise<RawItem[]> {
     return [];
   }
 
-  // Extract posts from profile
-  const posts = profileData.posts || [];
-  logVerbose(`Found ${posts.length} posts in LinkedIn profile ${handle}`);
+  // ScrapeCreators API returns data in multiple fields:
+  // - activity: Recent posts/shares/likes (most useful)
+  // - articles: LinkedIn Pulse articles
+  // - posts/recentPosts: Often empty in practice
+  const activity = profileData.activity || [];
+  const articles = profileData.articles || [];
+  const legacyPosts = profileData.posts || profileData.recentPosts || [];
 
-  // Convert to RawItems
+  logVerbose(
+    `Found in LinkedIn profile ${handle}: ${activity.length} activities, ${articles.length} articles, ${legacyPosts.length} legacy posts`
+  );
+
+  // Convert to RawItems from all sources
   const items: RawItem[] = [];
-  for (const post of posts) {
+
+  // Process activity items (posts/shares)
+  for (const act of activity) {
+    const item = activityToRawItem(act, profileData, retrievedAt);
+    if (item) {
+      const validated = validateItem(item);
+      if (validated) {
+        items.push(validated);
+      }
+    }
+  }
+
+  // Process articles
+  for (const article of articles) {
+    const item = articleToRawItem(article, profileData, retrievedAt);
+    if (item) {
+      const validated = validateItem(item);
+      if (validated) {
+        items.push(validated);
+      }
+    }
+  }
+
+  // Process legacy posts (if any)
+  for (const post of legacyPosts) {
     const item = profilePostToRawItem(post, profileData, retrievedAt);
     if (item) {
       const validated = validateItem(item);
@@ -526,70 +736,6 @@ async function fetchPost(postUrl: string): Promise<RawItem | null> {
 // ============================================
 
 /**
- * LinkedIn profiles organized by topic for targeted content retrieval.
- * Since ScrapeCreators doesn't have a search endpoint, we select relevant
- * profiles based on query keywords.
- */
-const LINKEDIN_PROFILES_BY_TOPIC: Record<string, string[]> = {
-  // AI/ML thought leaders
-  ai: [
-    'andrewyng',        // Andrew Ng - AI pioneer
-    'ylecun',           // Yann LeCun - Meta AI
-    'demaborenstein',   // Dema Borenstein - AI/Tech
-    'emaborenstein',    // Emma Borenstein - AI/Tech
-  ],
-  // Enterprise/Business leaders
-  enterprise: [
-    'sataborenstein',   // Sata Borenstein - Enterprise
-    'jeffaborenstein',  // Jeff Borenstein - Business
-  ],
-  // Software/Developer focused
-  software: [
-    'kelseyhightower',  // Kelsey Hightower - Cloud/DevOps
-    'scottgaborenstein', // Scott Borenstein - Engineering
-  ],
-  // General tech/default
-  default: [
-    'satyanadella',     // Satya Nadella - Microsoft CEO
-    'sundarpichai',     // Sundar Pichai - Google CEO
-  ],
-};
-
-/**
- * Select relevant LinkedIn profiles based on query keywords.
- * Matches query against topic categories to find relevant thought leaders.
- *
- * @param query - Search query to analyze
- * @returns Array of profile handles to fetch
- */
-function selectProfilesForQuery(query: string): string[] {
-  const queryLower = query.toLowerCase();
-  const selectedProfiles: Set<string> = new Set();
-
-  // Check for AI-related keywords
-  if (/\b(ai|artificial intelligence|machine learning|ml|llm|gpt|claude|openai|anthropic|agent|agents)\b/i.test(queryLower)) {
-    LINKEDIN_PROFILES_BY_TOPIC.ai.forEach(p => selectedProfiles.add(p));
-  }
-
-  // Check for enterprise keywords
-  if (/\b(enterprise|business|corporate|organization|company|leadership)\b/i.test(queryLower)) {
-    LINKEDIN_PROFILES_BY_TOPIC.enterprise.forEach(p => selectedProfiles.add(p));
-  }
-
-  // Check for software/dev keywords
-  if (/\b(software|developer|coding|programming|devops|cloud|engineering|github|cli)\b/i.test(queryLower)) {
-    LINKEDIN_PROFILES_BY_TOPIC.software.forEach(p => selectedProfiles.add(p));
-  }
-
-  // Always include default profiles
-  LINKEDIN_PROFILES_BY_TOPIC.default.forEach(p => selectedProfiles.add(p));
-
-  const profiles = [...selectedProfiles];
-  logVerbose(`LinkedIn: Selected ${profiles.length} profiles based on query keywords`);
-  return profiles;
-}
-
-/**
  * Search LinkedIn posts using ScrapeCreators API.
  *
  * This is an OPTIONAL source - if this fails, log warning and return empty array.
@@ -635,9 +781,22 @@ export async function searchLinkedIn(
   logVerbose(`LinkedIn: Extracted ${keywords.length} keywords for filtering: ${keywords.slice(0, 10).join(', ')}`);
 
   // ========================================
-  // Select profiles based on query topic
+  // Load profiles from file
   // ========================================
-  const profiles = selectProfilesForQuery(query);
+  const allProfiles = loadLinkedInProfiles();
+  if (allProfiles.length === 0) {
+    logWarning('LinkedIn: No profiles loaded from ref/linkedin-handles.md');
+    return [];
+  }
+  logInfo(`LinkedIn: Loaded ${allProfiles.length} profiles from file`);
+
+  // Select profiles (max based on rate limits)
+  const maxProfiles = Math.min(5, Math.ceil(config.maxPerSource / 20));
+  const selectedProfiles = selectLinkedInProfiles(allProfiles, maxProfiles);
+  logInfo(`LinkedIn: Selected profiles: ${selectedProfiles.map(p => p.slug).join(', ')}`);
+
+  // Map to profile slugs for fetching
+  const profileSlugs = selectedProfiles.map(p => p.slug);
 
   // ========================================
   // Fetch posts from profiles
@@ -646,8 +805,8 @@ export async function searchLinkedIn(
   const concurrencyLimit = API_CONCURRENCY_LIMITS.scrapeCreators;
 
   try {
-    for (let i = 0; i < profiles.length; i += concurrencyLimit) {
-      const batch = profiles.slice(i, i + concurrencyLimit);
+    for (let i = 0; i < profileSlugs.length; i += concurrencyLimit) {
+      const batch = profileSlugs.slice(i, i + concurrencyLimit);
 
       logVerbose(
         `Processing LinkedIn profiles batch ${Math.floor(i / concurrencyLimit) + 1}: ${batch.join(', ')}`
@@ -655,7 +814,7 @@ export async function searchLinkedIn(
 
       // Fetch profiles in parallel (within concurrency limit)
       const batchResults = await Promise.allSettled(
-        batch.map((handle) => fetchProfilePosts(handle))
+        batch.map((slug: string) => fetchProfilePosts(slug))
       );
 
       // Collect successful results

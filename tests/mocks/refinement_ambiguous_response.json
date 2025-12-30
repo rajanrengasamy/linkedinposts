@@ -1,0 +1,11 @@
+{
+  "isClear": false,
+  "confidence": 0.35,
+  "clarifyingQuestions": [
+    "Which specific industry or sector should the AI trends focus on (healthcare, finance, manufacturing, etc.)?",
+    "Are you targeting current adoption trends (2025) or emerging predictions for the future?",
+    "What type of content style do you prefer: data-driven with statistics, thought-leadership with expert opinions, or case-study focused?"
+  ],
+  "reasoning": "The prompt 'AI trends' is too broad for targeted research. The topic could span dozens of industries, timeframes, and content styles. Clarification on industry focus and content approach will significantly improve the quality of the generated post.",
+  "detectedIntents": ["thought-leadership", "trend-analysis"]
+}

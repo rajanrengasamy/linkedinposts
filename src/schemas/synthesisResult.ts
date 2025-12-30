@@ -20,6 +20,12 @@ export const InfographicStyleSchema = z.enum([
 export type InfographicStyle = z.infer<typeof InfographicStyleSchema>;
 
 /**
+ * Post style for multi-post generation
+ */
+export const PostStyleSchema = z.enum(['series', 'variations']);
+export type PostStyle = z.infer<typeof PostStyleSchema>;
+
+/**
  * Key quote with required source URL
  * CRITICAL: No quote appears without a verified source
  */
@@ -37,6 +43,19 @@ export const KeyQuoteSchema = z.object({
   verificationLevel: VerificationLevelSchema,
 });
 export type KeyQuote = z.infer<typeof KeyQuoteSchema>;
+
+/**
+ * Individual LinkedIn post in multi-post generation
+ */
+export const LinkedInPostSchema = z.object({
+  postNumber: z.number().int().min(1).max(3),
+  totalPosts: z.number().int().min(1).max(3),
+  linkedinPost: z.string().min(1).max(LINKEDIN_POST_MAX_LENGTH),
+  keyQuotes: z.array(KeyQuoteSchema),
+  infographicBrief: z.lazy(() => InfographicBriefSchema),
+  seriesTitle: z.string().optional(),
+});
+export type LinkedInPost = z.infer<typeof LinkedInPostSchema>;
 
 /**
  * Infographic generation brief
@@ -129,6 +148,12 @@ export const SynthesisResultSchema = z.object({
   /** Original user prompt */
   prompt: z.string().min(1),
 
+  /** Post style used for generation (optional for backward compat) */
+  postStyle: PostStyleSchema.optional(),
+
+  /** Array of generated posts for multi-post mode */
+  posts: z.array(LinkedInPostSchema).min(1).max(3).optional(),
+
   /** Generated LinkedIn post (max 3000 chars) */
   linkedinPost: z.string().min(1).max(LINKEDIN_POST_MAX_LENGTH),
 
@@ -169,6 +194,22 @@ export const GPTSynthesisResponseSchema = z.object({
 });
 
 export type GPTSynthesisResponse = z.infer<typeof GPTSynthesisResponseSchema>;
+
+/**
+ * GPT Multi-Post Response Schema - For multi-post generation mode.
+ *
+ * Validates GPT output when generating multiple posts (postCount > 1).
+ * Each post contains its own linkedinPost, keyQuotes, and infographicBrief.
+ */
+export const GPTMultiPostResponseSchema = z.object({
+  /** Array of generated posts */
+  posts: z.array(LinkedInPostSchema).min(1).max(3),
+
+  /** Aggregate fact-check summary across all posts */
+  factCheckSummary: FactCheckSummarySchema,
+});
+
+export type GPTMultiPostResponse = z.infer<typeof GPTMultiPostResponseSchema>;
 
 /**
  * Create an empty cost breakdown

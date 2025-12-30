@@ -10,7 +10,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, dirname, resolve, relative, isAbsolute } from 'node:path';
 import type { z } from 'zod';
-import type { SourceReference, SourcesFile } from '../schemas/index.js';
+import type { SourceReference, SourcesFile, LinkedInPost } from '../schemas/index.js';
 import type { PipelineStatus } from '../types/index.js';
 import {
   formatSourcesMarkdown,
@@ -167,6 +167,66 @@ export async function writeMarkdown(filePath: string, content: string): Promise<
 }
 
 // ============================================
+// Multi-Post Writing
+// ============================================
+
+/**
+ * Format combined posts for multi-post output file.
+ *
+ * @param posts - Array of LinkedIn posts to combine
+ * @returns Formatted markdown string with all posts
+ */
+function formatCombinedPosts(posts: LinkedInPost[]): string {
+  const header = `# LinkedIn Posts\n\nGenerated: ${new Date().toISOString()}\nTotal: ${posts.length} posts\n\n---\n\n`;
+
+  const sections = posts.map((post) => {
+    const title = post.seriesTitle
+      ? `## ${post.seriesTitle} - Part ${post.postNumber}/${post.totalPosts}`
+      : `## Post ${post.postNumber} of ${post.totalPosts}`;
+    return `${title}\n\n${post.linkedinPost}`;
+  });
+
+  return header + sections.join('\n\n---\n\n');
+}
+
+/**
+ * Write LinkedIn posts to files.
+ * Single post: linkedin_post.md
+ * Multiple posts: linkedin_post_1.md, linkedin_post_2.md, linkedin_posts_combined.md
+ *
+ * @param outputDir - Directory to write files to
+ * @param posts - Array of LinkedIn posts to write
+ */
+export async function writeLinkedInPosts(
+  outputDir: string,
+  posts: LinkedInPost[]
+): Promise<void> {
+  if (posts.length === 0) {
+    logVerbose('No posts to write');
+    return;
+  }
+
+  if (posts.length === 1) {
+    await writeMarkdown(join(outputDir, 'linkedin_post.md'), posts[0].linkedinPost);
+    return;
+  }
+
+  // Write individual files
+  for (const post of posts) {
+    await writeMarkdown(
+      join(outputDir, `linkedin_post_${post.postNumber}.md`),
+      post.linkedinPost
+    );
+  }
+
+  // Write combined file
+  const combined = formatCombinedPosts(posts);
+  await writeMarkdown(join(outputDir, 'linkedin_posts_combined.md'), combined);
+
+  logVerbose(`Wrote ${posts.length} LinkedIn posts`);
+}
+
+// ============================================
 // Binary Writing
 // ============================================
 
@@ -181,6 +241,39 @@ export async function writePNG(filePath: string, buffer: Buffer): Promise<void> 
   await writeFile(filePath, buffer);
 
   logVerbose(`Wrote PNG: ${filePath} (${buffer.length} bytes)`);
+}
+
+/**
+ * Write infographic images to files.
+ * Single: infographic.png
+ * Multiple: infographic_1.png, infographic_2.png, etc.
+ *
+ * @param outputDir - Directory to write files to
+ * @param results - Array of infographic results (null entries are skipped)
+ */
+export async function writeInfographics(
+  outputDir: string,
+  results: Array<{ postNumber: number; buffer: Buffer } | null>
+): Promise<void> {
+  const valid = results.filter(
+    (r): r is { postNumber: number; buffer: Buffer } => r !== null
+  );
+
+  if (valid.length === 0) {
+    logVerbose('No infographics to write');
+    return;
+  }
+
+  if (results.length === 1 && valid.length === 1) {
+    await writePNG(join(outputDir, 'infographic.png'), valid[0].buffer);
+    return;
+  }
+
+  for (const result of valid) {
+    await writePNG(join(outputDir, `infographic_${result.postNumber}.png`), result.buffer);
+  }
+
+  logVerbose(`Wrote ${valid.length} infographics`);
 }
 
 // ============================================
@@ -267,6 +360,8 @@ export interface OutputWriter {
   writeInfographic: (buffer: Buffer) => Promise<void>;
   writeSources: (sources: SourceReference[]) => Promise<void>;
   writeStatus: (status: PipelineStatus) => Promise<void>;
+  writeLinkedInPosts: (posts: LinkedInPost[]) => Promise<void>;
+  writeInfographics: (results: Array<{ postNumber: number; buffer: Buffer } | null>) => Promise<void>;
 }
 
 /**
@@ -315,6 +410,14 @@ export function createOutputWriterFromDir(outputDir: string): OutputWriter {
 
     writeStatus: async (status: PipelineStatus) => {
       await writePipelineStatus(join(outputDir, 'pipeline_status.json'), status);
+    },
+
+    writeLinkedInPosts: async (posts: LinkedInPost[]) => {
+      await writeLinkedInPosts(outputDir, posts);
+    },
+
+    writeInfographics: async (results: Array<{ postNumber: number; buffer: Buffer } | null>) => {
+      await writeInfographics(outputDir, results);
     },
   };
 }

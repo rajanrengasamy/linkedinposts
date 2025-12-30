@@ -601,7 +601,8 @@ describe('Collector Orchestrator', () => {
 
     it('deduplicates merged results', async () => {
       // Arrange - create mock responses with duplicate content
-      const duplicateContent = 'AI is transforming enterprise workflows';
+      // NOTE: Content must be >50 chars to pass the parser's minimum block size filter
+      const duplicateContent = 'AI is transforming enterprise workflows across industries with unprecedented efficiency gains and automation capabilities';
 
       // Create custom mock with duplicate content across sources
       const perplexityWithDupe = {

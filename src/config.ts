@@ -7,12 +7,14 @@
 
 import 'dotenv/config';
 import type { PipelineConfig, SourceOption, QualityProfile, ScoringModel } from './types/index.js';
+import type { RefinementModel, RefinementConfig } from './refinement/types.js';
 import {
   DEFAULT_CONFIG,
   QUALITY_PROFILES,
   API_CONCURRENCY_LIMITS,
   STAGE_TIMEOUT_MS,
 } from './types/index.js';
+import { DEFAULT_REFINEMENT_CONFIG, REFINEMENT_MODELS } from './refinement/types.js';
 import { logWarning } from './utils/logger.js';
 
 // ============================================
@@ -28,6 +30,7 @@ export const ENV_KEYS = {
   OPENAI_API_KEY: 'OPENAI_API_KEY',
   SCRAPECREATORS_API_KEY: 'SCRAPECREATORS_API_KEY',
   OPENROUTER_API_KEY: 'OPENROUTER_API_KEY',
+  ANTHROPIC_API_KEY: 'ANTHROPIC_API_KEY',
 } as const;
 
 /**
@@ -86,6 +89,7 @@ export interface ApiKeyValidationResult {
 export interface ValidateApiKeysOptions {
   sources: SourceOption[];
   scoringModel?: ScoringModel;
+  refinementModel?: RefinementModel;
 }
 
 /**
@@ -143,6 +147,21 @@ export function validateApiKeys(options: SourceOption[] | ValidateApiKeysOptions
     }
   }
 
+  // Check Anthropic key if using claude for refinement
+  const refinementModel = Array.isArray(options) ? undefined : options.refinementModel;
+  if (refinementModel === 'claude') {
+    if (!hasApiKey('ANTHROPIC_API_KEY')) {
+      missing.push(ENV_KEYS.ANTHROPIC_API_KEY);
+    }
+  }
+
+  // Check OpenRouter key if using kimi2 for refinement (and not already checked for scoring)
+  if (refinementModel === 'kimi2' && scoringModel !== 'kimi2') {
+    if (!hasApiKey('OPENROUTER_API_KEY')) {
+      missing.push(ENV_KEYS.OPENROUTER_API_KEY);
+    }
+  }
+
   return {
     valid: missing.length === 0,
     missing,
@@ -191,6 +210,11 @@ export interface CliOptions {
   saveRaw?: boolean;
   imageResolution?: string;
   scoringModel?: string;
+  skipRefinement?: boolean;
+  refinementModel?: string;
+  postCount?: string;
+  postStyle?: string;
+  fromScored?: string;
   timeout?: string;
   verbose?: boolean;
   dryRun?: boolean;
@@ -275,6 +299,25 @@ function parseScoringModel(modelStr: string): ScoringModel {
 }
 
 /**
+ * Parse refinement model from string, defaulting to 'gemini'.
+ * Warns about invalid refinement model values.
+ *
+ * @param modelStr - Model string from CLI option
+ * @returns Valid RefinementModel
+ */
+export function parseRefinementModel(modelStr: string | undefined): RefinementModel {
+  if (!modelStr) return 'gemini';
+  const model = modelStr.toLowerCase();
+  if (REFINEMENT_MODELS.includes(model as RefinementModel)) {
+    return model as RefinementModel;
+  }
+  logWarning(
+    `Invalid refinement model '${modelStr}' ignored. Using 'gemini'. Valid options: ${REFINEMENT_MODELS.join(', ')}`
+  );
+  return 'gemini';
+}
+
+/**
  * Build a complete PipelineConfig from CLI options.
  *
  * Merging order (later overrides earlier):
@@ -349,6 +392,26 @@ export function buildConfig(options: CliOptions): PipelineConfig {
     config.scoringModel = parseScoringModel(options.scoringModel);
   }
 
+  // Build refinement config
+  const refinement: RefinementConfig = {
+    skip: options.skipRefinement ?? DEFAULT_REFINEMENT_CONFIG.skip,
+    model: parseRefinementModel(options.refinementModel),
+    maxIterations: DEFAULT_REFINEMENT_CONFIG.maxIterations,
+    timeoutMs: DEFAULT_REFINEMENT_CONFIG.timeoutMs,
+  };
+  config.refinement = refinement;
+
+  // Parse multi-post options
+  const postCount = parsePostCount(options.postCount);
+  const postStyle = parsePostStyle(options.postStyle);
+  config.postCount = postCount;
+  config.postStyle = postStyle;
+
+  // Resume from scored data (skips collection/validation/scoring)
+  if (options.fromScored !== undefined) {
+    config.fromScored = options.fromScored;
+  }
+
   if (options.timeout !== undefined) {
     const parsed = parseInt(options.timeout, 10);
     if (!isNaN(parsed) && parsed > 0) {
@@ -414,6 +477,7 @@ export function validateConfig(config: PipelineConfig): ApiKeyValidationResult {
   return validateApiKeys({
     sources: config.sources,
     scoringModel: config.scoringModel,
+    refinementModel: config.refinement?.model,
   });
 }
 
@@ -425,6 +489,7 @@ export function requireValidConfig(config: PipelineConfig): void {
   requireApiKeys({
     sources: config.sources,
     scoringModel: config.scoringModel,
+    refinementModel: config.refinement?.model,
   });
 }
 
@@ -439,4 +504,54 @@ export {
   STAGE_TIMEOUT_MS,
 } from './types/index.js';
 
-export type { PipelineConfig, QualityProfile, SourceOption, ScoringModel } from './types/index.js';
+export type { PipelineConfig, QualityProfile, SourceOption, ScoringModel, PostStyle } from './types/index.js';
+
+// ============================================
+// Multi-Post Parsing Functions
+// ============================================
+
+/**
+ * Parse post count from CLI option.
+ * Valid range: 1-3. Invalid values default to 1.
+ *
+ * @param countStr - String value from CLI (e.g., '2')
+ * @returns Parsed post count (1-3)
+ */
+export function parsePostCount(countStr: string | undefined): number {
+  if (countStr === undefined) {
+    return 1;
+  }
+
+  const parsed = parseInt(countStr, 10);
+  if (isNaN(parsed) || parsed < 1 || parsed > 3) {
+    logWarning(
+      `Invalid --post-count value '${countStr}'. Using default: 1. Valid range: 1-3`
+    );
+    return 1;
+  }
+
+  return parsed;
+}
+
+/**
+ * Parse post style from CLI option.
+ * Valid values: 'series' | 'variations'. Invalid values default to 'variations'.
+ *
+ * @param styleStr - String value from CLI
+ * @returns Parsed post style
+ */
+export function parsePostStyle(styleStr: string | undefined): 'series' | 'variations' {
+  if (styleStr === undefined) {
+    return 'variations';
+  }
+
+  const normalized = styleStr.toLowerCase();
+  if (normalized !== 'series' && normalized !== 'variations') {
+    logWarning(
+      `Invalid --post-style value '${styleStr}'. Using default: variations. Valid options: series, variations`
+    );
+    return 'variations';
+  }
+
+  return normalized as 'series' | 'variations';
+}

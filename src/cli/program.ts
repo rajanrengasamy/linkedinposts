@@ -65,6 +65,19 @@ export function createProgram(): Command {
     // Model Selection
     .option('--scoring-model <model>', 'Scoring model: gemini|kimi2', 'gemini')
 
+    // Prompt Refinement
+    .option('--skip-refinement', 'Skip prompt refinement phase')
+    .option('--refinement-model <model>',
+      'Refinement model: gemini|gpt|claude|kimi2 (default: gemini)',
+      'gemini')
+
+    // Multi-Post Generation
+    .option('--post-count <n>', 'Number of posts to generate (1-3)', '1')
+    .option('--post-style <style>', 'Post style: series|variations', 'variations')
+
+    // Resume from scored data
+    .option('--from-scored <path>', 'Resume from scored_data.json, skip collection/validation/scoring')
+
     // Performance
     .option('--timeout <seconds>', 'Pipeline timeout in seconds', '600')
     .option('--print-cost-estimate', 'Print cost estimate and exit')
@@ -99,6 +112,15 @@ Examples:
   # Dry run to validate config
   $ npx tsx src/index.ts "AI trends" --dry-run --verbose
 
+  # Generate 3 post variations for A/B testing
+  $ npx tsx src/index.ts "AI trends" --post-count 3
+
+  # Generate 3-part series for deep-dive topic
+  $ npx tsx src/index.ts "AI trends" --post-count 3 --post-style series
+
+  # Resume from previous run's scored data
+  $ npx tsx src/index.ts "AI trends" --from-scored output/2025-12-30/scored_data.json
+
 Notes:
   - Web-only mode is recommended for commercial/shared use
   - LinkedIn/X sources may violate platform Terms of Service
@@ -132,6 +154,11 @@ interface CommanderOptions {
   saveRaw?: boolean;
   imageResolution?: string;
   scoringModel?: string;
+  skipRefinement?: boolean;
+  refinementModel?: string;
+  postCount?: string;
+  postStyle?: string;
+  fromScored?: string;
   timeout?: string;
   printCostEstimate?: boolean;
   verbose?: boolean;
@@ -181,6 +208,11 @@ function isValidCommanderOptions(opts: Record<string, unknown>): boolean {
     boolOrUndef(opts.saveRaw) &&
     stringOrUndef(opts.imageResolution) &&
     stringOrUndef(opts.scoringModel) &&
+    boolOrUndef(opts.skipRefinement) &&
+    stringOrUndef(opts.refinementModel) &&
+    stringOrUndef(opts.postCount) &&
+    stringOrUndef(opts.postStyle) &&
+    stringOrUndef(opts.fromScored) &&
     stringOrUndef(opts.timeout) &&
     boolOrUndef(opts.printCostEstimate) &&
     boolOrUndef(opts.verbose) &&
@@ -241,6 +273,11 @@ export function parseCliOptions(
     saveRaw: commanderOpts.saveRaw,
     imageResolution: commanderOpts.imageResolution,
     scoringModel: commanderOpts.scoringModel,
+    skipRefinement: commanderOpts.skipRefinement,
+    refinementModel: commanderOpts.refinementModel,
+    postCount: commanderOpts.postCount,
+    postStyle: commanderOpts.postStyle,
+    fromScored: commanderOpts.fromScored,
     timeout: commanderOpts.timeout,
     verbose: commanderOpts.verbose,
     dryRun: commanderOpts.dryRun,

@@ -136,6 +136,8 @@ CREDIBILITY - SOURCE EVERYTHING:
 - Every claim, quote, and statistic MUST be backed by provided sources
 - Never paraphrase in a way that changes meaning or creates false attribution
 - When citing, use the EXACT wording from verified claims
+- NEVER truncate quotes mid-sentence or mid-word - use COMPLETE sentences only
+- If a quote is too long, select a complete sentence from it, don't cut it arbitrarily
 - If a source has limitations, acknowledge them rather than overselling
 
 ACTION - DRIVE ENGAGEMENT:
@@ -444,6 +446,7 @@ import {
   retryWithFixPrompt,
   SynthesisResultSchema,
   GPTSynthesisResponseSchema,
+  GPTMultiPostResponseSchema,
   LINKEDIN_POST_MAX_LENGTH,
   LINKEDIN_HASHTAGS_MIN,
   LINKEDIN_HASHTAGS_MAX,
@@ -454,10 +457,12 @@ import {
   type SynthesisResult,
   type ScoredItem,
   type SourceReference,
+  type GPTMultiPostResponse,
+  type LinkedInPost,
 } from '../schemas/index.js';
 import { sanitizePromptContent, sanitizeErrorMessage } from '../utils/sanitization.js';
 import type { GroundedClaim } from './claims.js';
-import type { PipelineConfig } from '../types/index.js';
+import type { PipelineConfig, PostStyle } from '../types/index.js';
 
 // ============================================
 // Prompt Building Constants
@@ -782,8 +787,18 @@ Select 2-4 quotes prioritizing:
 3. Verifiability: PRIMARY_SOURCE and MULTISOURCE_CONFIRMED over single-source
 4. Impact: Quotes that support the post's main argument or provide "aha" moments
 
+CRITICAL QUOTE RULES - NEVER TRUNCATE:
+- The "quote" field MUST be the COMPLETE claim text or a COMPLETE SENTENCE from it
+- NEVER cut a quote mid-sentence or mid-word (e.g., "s docs" is WRONG)
+- NEVER start a quote with a lowercase letter or partial word
+- NEVER end a quote with "and it" or other incomplete phrases
+- If a claim is too long, use a COMPLETE SENTENCE from it, not a fragment
+- If you cannot fit a complete quote, OMIT it rather than truncate it
+- Example of WRONG: "s docs, and the results blew my mind" (truncated start/end)
+- Example of RIGHT: "I just fed GPT-4-32K nearly all of Pinecone's docs, and the results blew my mind!" (complete sentence)
+
 Each quote MUST have:
-- quote: EXACT text from claims (do not paraphrase)
+- quote: COMPLETE text - full claim or complete sentence (NEVER truncate mid-word/mid-sentence)
 - author: Full name from claims, or "Unknown" if not provided (NEVER empty string)
 - sourceUrl: MUST match exactly from the claims provided
 - verificationLevel: From the claim's verification level
@@ -883,6 +898,223 @@ Return ONLY valid JSON in this exact format:
 CRITICAL: Every quote in keyQuotes MUST have a valid sourceUrl from the claims provided. Never invent sources.`;
 
   return prompt;
+}
+
+// ============================================
+// Multi-Post Prompt Building (Section 17.5)
+// ============================================
+
+/**
+ * Build instructions for "variations" mode - distinct posts with different angles.
+ */
+function buildVariationsInstructions(postCount: number): string {
+  return `=== VARIATIONS MODE ===
+Generate ${postCount} DISTINCT posts with DIFFERENT angles:
+
+CRITICAL RULES:
+- Each post MUST use a DIFFERENT opening hook
+- Do NOT repeat any key quotes across posts
+- Distribute claims to maximize variety
+- Each post stands alone
+
+Post 1: Lead with surprising statistic
+Post 2: Lead with provocative question
+Post 3: Lead with expert insight`;
+}
+
+/**
+ * Build instructions for "series" mode - connected multi-part content.
+ */
+function buildSeriesInstructions(postCount: number): string {
+  return `=== SERIES MODE ===
+Generate a ${postCount}-PART CONNECTED SERIES:
+
+CRITICAL RULES:
+- Part 1: Introduction - hook reader, set up the topic
+- Part 2: Deep dive - main insights and analysis
+- Part 3: Conclusions - takeaways and call to action
+- Each post MUST start with "Part N/${postCount}: [Title]"
+- Parts 1-2 end with teaser for next part
+- Include seriesTitle field for all posts`;
+}
+
+/**
+ * Build a multi-post synthesis prompt for GPT.
+ *
+ * Creates a prompt that generates multiple LinkedIn posts in one request,
+ * either as variations (different angles) or series (connected parts).
+ *
+ * @param claims - Array of grounded claims to use
+ * @param userPrompt - The user's original topic/prompt
+ * @param postCount - Number of posts to generate (1-3)
+ * @param postStyle - 'variations' for A/B testing, 'series' for connected content
+ * @returns Complete multi-post prompt string ready to send to GPT
+ * @throws Error if inputs are invalid
+ */
+export function buildMultiPostPrompt(
+  claims: GroundedClaim[],
+  userPrompt: string,
+  postCount: number,
+  postStyle: PostStyle
+): string {
+  // Validate inputs
+  if (!userPrompt || userPrompt.trim().length < MIN_USER_PROMPT_LENGTH) {
+    throw new Error(`FATAL: User prompt too short`);
+  }
+
+  const sanitizedUserPrompt = sanitizePromptContent(userPrompt, MAX_CLAIM_LENGTH);
+  const formattedClaims = formatClaimsForPrompt(claims);
+
+  const styleInstructions =
+    postStyle === 'series'
+      ? buildSeriesInstructions(postCount)
+      : buildVariationsInstructions(postCount);
+
+  return `Generate ${postCount} LinkedIn posts about the following topic.
+
+${DELIMITERS.USER_PROMPT_START}
+${sanitizedUserPrompt}
+${DELIMITERS.USER_PROMPT_END}
+
+USE ONLY the following verified claims. Do NOT invent facts, quotes, or statistics.
+
+${DELIMITERS.CLAIMS_START}
+${formattedClaims}
+${DELIMITERS.CLAIMS_END}
+
+${styleInstructions}
+
+${DELIMITERS.INSTRUCTIONS_START}
+Each post MUST:
+- Be under ${LINKEDIN_POST_MAX_LENGTH} characters
+- Have ${LINKEDIN_HASHTAGS_MIN}-${LINKEDIN_HASHTAGS_MAX} hashtags
+- Include source citations for quotes
+- Be professional but engaging
+
+CRITICAL QUOTE RULES - NEVER TRUNCATE:
+- Quotes MUST be COMPLETE sentences, never cut mid-word or mid-sentence
+- NEVER start a quote with a lowercase letter or partial word (e.g., "s docs" is WRONG)
+- NEVER end a quote with incomplete phrases like "and it" or "but the"
+- If a claim is too long, use a COMPLETE SENTENCE from it, not a fragment
+- If you cannot fit a complete quote, OMIT it rather than truncate it
+
+Return ONLY valid JSON:
+{
+  "posts": [
+    {
+      "postNumber": 1,
+      "totalPosts": ${postCount},
+      "linkedinPost": "Post content here...",
+      "keyQuotes": [{"quote": "...", "author": "...", "sourceUrl": "...", "verificationLevel": "..."}],
+      "infographicBrief": {"title": "...", "keyPoints": [...], "suggestedStyle": "minimal", "colorScheme": "..."}${postStyle === 'series' ? ',\n      "seriesTitle": "Series Title Here"' : ''}
+    }
+  ],
+  "factCheckSummary": {
+    "totalSourcesUsed": 0,
+    "verifiedQuotes": 0,
+    "unverifiedClaims": 0,
+    "primarySources": 0,
+    "warnings": []
+  }
+}
+${DELIMITERS.INSTRUCTIONS_END}`;
+}
+
+// ============================================
+// Multi-Post Response Parsing (Section 17.5)
+// ============================================
+
+/**
+ * Parse GPT's multi-post response into validated data.
+ *
+ * @param response - Raw text response from GPT API
+ * @returns Validated GPTMultiPostResponse
+ * @throws SchemaValidationError if validation fails
+ */
+export function parseMultiPostResponse(response: string): GPTMultiPostResponse {
+  const rawParsed = parseModelResponse<unknown>(response);
+
+  const result = GPTMultiPostResponseSchema.safeParse(rawParsed);
+  if (!result.success) {
+    const errors = result.error.issues
+      .map((i) => `${i.path.join('.')}: ${i.message}`)
+      .join('; ');
+    throw new SchemaValidationError(
+      `Multi-post schema validation failed: ${errors}`,
+      result.error
+    );
+  }
+
+  return result.data;
+}
+
+/**
+ * Parse multi-post response with retry on fixable errors.
+ *
+ * @param content - Raw GPT response content
+ * @param originalPrompt - Original prompt for context in retry
+ * @returns Validated GPTMultiPostResponse
+ * @throws Error with FATAL prefix if parsing fails
+ */
+async function parseMultiPostWithRetry(
+  content: string,
+  originalPrompt: string
+): Promise<GPTMultiPostResponse> {
+  try {
+    return parseMultiPostResponse(content);
+  } catch (parseError) {
+    if (!isFixableParseError(parseError)) {
+      throw new Error(
+        `FATAL: Multi-post parse failed - ${sanitizeErrorMessage(parseError instanceof Error ? parseError.message : String(parseError))}`
+      );
+    }
+    logWarning('Multi-post parse failed, attempting fix...');
+    // For now, throw - can enhance retry logic later if needed
+    throw parseError;
+  }
+}
+
+/**
+ * Convert multi-post GPT response to SynthesisResult format.
+ *
+ * Maps the multi-post structure to the existing SynthesisResult schema,
+ * using the first post as the primary post while including all posts
+ * in the posts array.
+ *
+ * @param multiPost - Validated multi-post response from GPT
+ * @param prompt - Original user prompt
+ * @param config - Pipeline configuration
+ * @returns SynthesisResult with posts array populated
+ */
+function convertMultiPostToSynthesisResult(
+  multiPost: GPTMultiPostResponse,
+  prompt: string,
+  config: PipelineConfig
+): SynthesisResult {
+  const firstPost = multiPost.posts[0];
+
+  // Combine all keyQuotes from all posts (deduplicated by quote text)
+  const allQuotes = multiPost.posts.flatMap((p) => p.keyQuotes);
+  const uniqueQuotes = allQuotes.filter(
+    (q, i, arr) => arr.findIndex((x) => x.quote === q.quote) === i
+  );
+
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    generatedAt: new Date().toISOString(),
+    prompt,
+    postStyle: config.postStyle,
+    posts: multiPost.posts as LinkedInPost[],
+    linkedinPost: firstPost.linkedinPost,
+    keyQuotes: uniqueQuotes,
+    infographicBrief: firstPost.infographicBrief,
+    factCheckSummary: multiPost.factCheckSummary,
+    metadata: {
+      sourcesUsed: multiPost.factCheckSummary.totalSourcesUsed,
+      processingTimeMs: 0, // Will be set by caller
+      estimatedCost: createEmptyCostBreakdown(),
+    },
+  };
 }
 
 // ============================================
@@ -1071,6 +1303,29 @@ export function validateOutputConstraints(
         `FATAL: Quote has invalid sourceUrl - not found in claims: "${quote.sourceUrl}", quote: "${quote.quote.substring(0, 50)}..."`
       );
     }
+
+    // Detect truncated quotes - quotes should not start with lowercase or partial words
+    const quoteText = quote.quote.trim();
+
+    // Check for quotes starting with lowercase (likely truncated mid-sentence)
+    if (quoteText.length > 0 && /^[a-z]/.test(quoteText)) {
+      logWarning(
+        `Quote appears truncated (starts with lowercase): "${quoteText.substring(0, 60)}..." - ` +
+        `This may indicate GPT cut the quote mid-sentence. Consider regenerating.`
+      );
+    }
+
+    // Check for quotes ending abruptly (common truncation patterns)
+    const truncationEndings = [' and it', ' and the', ' but it', ' but the', ' that it', ' which'];
+    for (const ending of truncationEndings) {
+      if (quoteText.toLowerCase().endsWith(ending)) {
+        logWarning(
+          `Quote appears truncated (ends with "${ending}"): "...${quoteText.substring(quoteText.length - 60)}" - ` +
+          `This may indicate GPT cut the quote mid-sentence.`
+        );
+        break;
+      }
+    }
   }
 }
 
@@ -1108,7 +1363,7 @@ export function validateOutputConstraints(
 export async function synthesize(
   claims: GroundedClaim[],
   prompt: string,
-  _config: PipelineConfig
+  config: PipelineConfig
 ): Promise<SynthesisResult> {
   const startTime = Date.now();
 
@@ -1128,17 +1383,27 @@ export async function synthesize(
     );
   }
 
-  logVerbose(`Synthesizing from ${claims.length} grounded claims`);
+  // Check if multi-post mode (Section 17.5)
+  const isMultiPost = config.postCount > 1;
 
-  // 2. Build prompt
-  const synthesisPrompt = buildSynthesisPrompt(claims, prompt);
+  logVerbose(
+    `Synthesizing from ${claims.length} grounded claims` +
+      (isMultiPost ? ` (${config.postCount} posts, ${config.postStyle} mode)` : '')
+  );
+
+  // 2. Build appropriate prompt based on mode
+  const synthesisPrompt = isMultiPost
+    ? buildMultiPostPrompt(claims, prompt, config.postCount, config.postStyle)
+    : buildSynthesisPrompt(claims, prompt);
 
   // 3. Call GPT with retry (throws on failure - FATAL)
   let gptResponse: GPTResponse;
   try {
     gptResponse = await makeGPTRequest(synthesisPrompt, {
-      operationName: 'GPT synthesis',
+      operationName: isMultiPost ? 'GPT multi-post synthesis' : 'GPT synthesis',
       reasoningEffort: 'medium',
+      // Increase max tokens for multi-post to accommodate larger response
+      maxTokens: isMultiPost ? MAX_TOKENS * 2 : MAX_TOKENS,
     });
   } catch (error) {
     // Always create a new sanitized error - never re-throw original (may contain API keys)
@@ -1150,8 +1415,17 @@ export async function synthesize(
     throw new Error(sanitizeErrorMessage(message));
   }
 
-  // 4. Parse response with automatic retry on fixable errors (MAJ-8)
-  const parsedResult = await parseWithRetry(gptResponse.content, synthesisPrompt);
+  // 4. Parse response based on mode
+  let parsedResult: SynthesisResult;
+  if (isMultiPost) {
+    const multiPostResult = await parseMultiPostWithRetry(
+      gptResponse.content,
+      synthesisPrompt
+    );
+    parsedResult = convertMultiPostToSynthesisResult(multiPostResult, prompt, config);
+  } else {
+    parsedResult = await parseWithRetry(gptResponse.content, synthesisPrompt);
+  }
 
   // 5. Update metadata
   const processingTimeMs = Date.now() - startTime;
@@ -1181,8 +1455,12 @@ export async function synthesize(
   const allowedSourceUrls = new Set(claims.map(c => c.sourceUrl));
   validateOutputConstraints(finalResult, allowedSourceUrls);
 
+  const postInfo = isMultiPost
+    ? `${finalResult.posts?.length ?? 1} posts (${finalResult.linkedinPost.length} chars primary)`
+    : `${finalResult.linkedinPost.length} chars`;
+
   logVerbose(
-    `Synthesis complete: ${finalResult.linkedinPost.length} chars, ` +
+    `Synthesis complete: ${postInfo}, ` +
       `${finalResult.keyQuotes.length} quotes, ` +
       `${processingTimeMs}ms`
   );

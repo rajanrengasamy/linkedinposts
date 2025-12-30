@@ -1000,3 +1000,28 @@ describe('Security: API Key Sanitization (MAJ-4)', () => {
     expect(sanitized).toContain('[REDACTED]');
   });
 });
+
+// ============================================
+// Multi-post CLI options Tests (Section 17.9)
+// ============================================
+
+describe('Multi-post CLI options', () => {
+  it('should parse --post-count option', () => {
+    const result = parseCliOptions({ postCount: '3' }, 'test prompt');
+    expect(result.options.postCount).toBe('3');
+  });
+
+  it('should parse --post-style option', () => {
+    const result = parseCliOptions({ postStyle: 'series' }, 'test prompt');
+    expect(result.options.postStyle).toBe('series');
+  });
+
+  it('should include post options in parsed result', () => {
+    const result = parseCliOptions(
+      { postCount: '2', postStyle: 'variations' },
+      'test prompt'
+    );
+    expect(result.options.postCount).toBe('2');
+    expect(result.options.postStyle).toBe('variations');
+  });
+});

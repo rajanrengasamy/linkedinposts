@@ -74,6 +74,19 @@ export {
 export { IMAGE_COSTS } from '../utils/cost.js';
 
 // ============================================
+// Re-export Refinement types
+// ============================================
+
+export type {
+  RefinementModel,
+  RefinementConfig,
+  PromptAnalysis,
+  RefinementResult,
+} from '../refinement/types.js';
+
+export { DEFAULT_REFINEMENT_CONFIG } from '../refinement/types.js';
+
+// ============================================
 // Pipeline Configuration
 // ============================================
 
@@ -93,6 +106,13 @@ export type ImageResolution = '2k' | '4k';
  * - 'kimi2': Kimi K2 via OpenRouter
  */
 export type ScoringModel = 'gemini' | 'kimi2';
+
+/**
+ * Post style for multi-post generation
+ * - 'variations': Different hooks/angles for A/B testing
+ * - 'series': Connected multi-part thread
+ */
+export type PostStyle = 'series' | 'variations';
 
 /**
  * Source types that can be enabled
@@ -153,6 +173,18 @@ export interface PipelineConfig {
 
   /** Number of top-scored items to return (default: 50) */
   topScored?: number;
+
+  /** Number of posts to generate (1-3, default: 1) */
+  postCount: number;
+
+  /** Post style: 'variations' for A/B testing, 'series' for connected multi-part */
+  postStyle: PostStyle;
+
+  /** Path to scored_data.json to resume from (skips collection/validation/scoring) */
+  fromScored?: string;
+
+  /** Refinement phase configuration */
+  refinement: import('../refinement/types.js').RefinementConfig;
 }
 
 /**
@@ -175,6 +207,14 @@ export const DEFAULT_CONFIG: PipelineConfig = {
   saveRaw: false,
   verbose: false,
   dryRun: false,
+  postCount: 1,
+  postStyle: 'variations' as PostStyle,
+  refinement: {
+    skip: false,
+    model: 'gemini',
+    maxIterations: 3,
+    timeoutMs: 30000,
+  },
 };
 
 /**
@@ -280,5 +320,6 @@ export const API_CONCURRENCY_LIMITS = {
 
 /**
  * Stage timeout in milliseconds
+ * GPT-5.2 with reasoning enabled can take 2-5 minutes for complex multi-post prompts
  */
-export const STAGE_TIMEOUT_MS = 60000; // 60 seconds
+export const STAGE_TIMEOUT_MS = 300000; // 300 seconds (5 minutes)

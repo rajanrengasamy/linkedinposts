@@ -1,6 +1,6 @@
 # LinkedIn Post Generator - Project TODO v2
 
-**Version**: 2.1
+**Version**: 2.3
 **Last Updated**: 2025-12-30
 **PRD Reference**: `docs/PRD-v2.md`
 
@@ -1004,6 +1004,11 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
 - [ ] Document failure modes in each module
 - [ ] Document schema field meanings
 
+### 14.3 HowTo.md Maintenance
+- [x] Create `docs/HowTo.md` with all CLI permutations
+- [ ] Update HowTo.md when new CLI options are added
+- [x] Update HowTo.md when Section 17 (Multi-Post) is implemented
+
 ---
 
 ## 15. Final Checks
@@ -1078,6 +1083,475 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
 
 ---
 
+## 17. Multi-Post Generation
+
+Generate multiple LinkedIn posts from a single pipeline run via `--post-count` and `--post-style` options.
+
+### 17.1 Type Definitions
+
+**File: `src/types/index.ts`**
+- [x] Add `PostStyle` type: `'series' | 'variations'`
+- [x] Update `PipelineConfig` interface:
+  - [x] `postCount: number` (default: 1)
+  - [x] `postStyle: PostStyle` (default: 'variations')
+- [x] Update `DEFAULT_CONFIG` with new defaults
+
+### 17.2 CLI Options
+
+**File: `src/cli/program.ts`**
+- [x] Add `--post-count <n>` option (1-3, default: 1)
+- [x] Add `--post-style <style>` option (series|variations, default: variations)
+
+**File: `src/cli/program.ts` (CommanderOptions)**
+- [x] Add `postCount?: string` to CommanderOptions interface
+- [x] Add `postStyle?: string` to CommanderOptions interface
+- [x] Update `isValidCommanderOptions()` validation
+
+### 17.3 Config Parsing
+
+**File: `src/config.ts`**
+- [x] Add `parsePostCount(countStr: string): number`:
+  - [x] Validate 1-3 range
+  - [x] Log warning on invalid, return 1
+- [x] Add `parsePostStyle(styleStr: string): PostStyle`:
+  - [x] Validate 'series' | 'variations'
+  - [x] Log warning on invalid, return 'variations'
+- [x] Update `CliOptions` interface
+- [x] Update `buildConfig()` to parse new options
+
+### 17.4 Schema Changes
+
+**File: `src/schemas/synthesisResult.ts`**
+- [x] Add `LinkedInPostSchema`:
+  ```typescript
+  z.object({
+    postNumber: z.number().int().min(1),
+    totalPosts: z.number().int().min(1),
+    linkedinPost: z.string().min(1).max(LINKEDIN_POST_MAX_LENGTH),
+    keyQuotes: z.array(KeyQuoteSchema),
+    infographicBrief: InfographicBriefSchema,
+    seriesTitle: z.string().optional(),
+  })
+  ```
+- [x] Update `SynthesisResultSchema` to support multi-post:
+  - [x] Add `postStyle: z.enum(['series', 'variations'])`
+  - [x] Add `posts: z.array(LinkedInPostSchema).min(1).max(3).optional()` (optional for backward compat)
+  - [x] Keep existing `linkedinPost` field for single-post mode
+  - [x] Aggregate `factCheckSummary` across all posts
+- [x] Ensure backward compatibility for single-post (postCount: 1)
+- [x] Add `GPTMultiPostResponseSchema` for validating GPT output in multi-post mode
+- [x] Update barrel export (`src/schemas/index.ts`) with new types
+
+### 17.5 GPT Prompt Engineering
+
+**File: `src/synthesis/gpt.ts`**
+- [x] Add `buildMultiPostPrompt(claims, userPrompt, postCount, postStyle)`:
+  - [x] For `variations`: Request N distinct posts with different hooks
+  - [x] For `series`: Request N-part connected series
+  - [x] Include instructions for distributing claims across posts
+  - [x] Prevent quote repetition across posts (variations)
+- [x] Update JSON schema in prompt to expect `posts` array
+- [x] Add series-specific instructions:
+  - [x] Part numbering (e.g., "Part 1/3:")
+  - [x] Teasers for next parts
+  - [x] Logical progression of claims
+- [x] Add `parseMultiPostResponse()` for validating multi-post GPT output
+- [x] Add `convertMultiPostToSynthesisResult()` for backward-compatible output
+- [x] Update `synthesize()` to detect multi-post mode and use appropriate prompt/parser
+
+### 17.6 File Output Changes
+
+**File: `src/utils/fileWriter.ts`**
+- [x] Add `writeLinkedInPosts(posts: LinkedInPost[])` method:
+  - [x] If 1 post: write `linkedin_post.md` (backward compatible)
+  - [x] If > 1: write `linkedin_post_1.md`, `linkedin_post_2.md`, etc.
+  - [x] Write `linkedin_posts_combined.md` for multi-post
+- [x] Update `OutputWriter` interface with new method
+- [x] Update `createOutputWriterFromDir()` implementation
+- [x] Add `writeInfographics()` method for multi-infographic support
+- [x] Add `formatCombinedPosts()` helper for combined markdown output
+
+### 17.7 Image Generation Updates
+
+**File: `src/image/nanoBanana.ts`**
+- [x] Support generating multiple infographics:
+  - [x] Each post has its own `infographicBrief`
+  - [x] Output: `infographic_1.png`, `infographic_2.png`, etc.
+  - [x] For single post: `infographic.png` (backward compatible)
+- [x] Add `generateMultipleInfographics()` function
+- [x] Export from `src/image/index.ts`
+
+**File: `src/cli/runPipeline.ts`**
+- [x] Update image generation loop:
+  - [x] Iterate over `synthesis.posts`
+  - [x] Generate one infographic per post
+  - [x] Use numbered filenames for multi-post
+
+### 17.8 Pipeline Orchestration
+
+**File: `src/cli/runPipeline.ts`**
+- [x] Update Stage 4 (Synthesis):
+  - [x] Pass `postCount` and `postStyle` to synthesize function
+  - [x] Handle new multi-post `SynthesisResult` structure
+  - [x] Call `writeLinkedInPosts()` instead of `writeLinkedInPost()`
+- [x] Update Stage 5 (Image):
+  - [x] Loop through each post for image generation
+  - [x] Use appropriate filenames
+- [x] Update provenance tracking for multi-post
+
+### 17.9 Tests
+
+**File: `tests/unit/cli.test.ts`**
+- [x] Test `--post-count` option parsing
+- [x] Test `--post-style` option parsing
+- [x] Test validation (1-3 range, series|variations)
+- [x] Test default values
+
+**File: `tests/unit/config.test.ts`**
+- [x] Test `parsePostCount()` function
+- [x] Test `parsePostStyle()` function
+- [x] Test `buildConfig()` with new options
+
+**File: `tests/unit/synthesis.test.ts`**
+- [ ] Test multi-post prompt building (variations) - TODO: add dedicated tests
+- [ ] Test multi-post prompt building (series) - TODO: add dedicated tests
+- [ ] Test schema validation for multi-post result - TODO: add dedicated tests
+
+**File: `tests/unit/fileWriter.test.ts`**
+- [ ] Test `writeLinkedInPosts()` with 1 post - TODO: add dedicated tests
+- [ ] Test `writeLinkedInPosts()` with 3 posts - TODO: add dedicated tests
+- [ ] Test combined file generation - TODO: add dedicated tests
+
+### 17.10 Documentation
+
+- [x] Update PRD-v2.md with Multi-Post Generation section
+- [x] Update PRD-v2.md CLI options
+- [x] Update PRD-v2.md examples
+- [x] Update PRD-v2.md changelog
+
+---
+
+## 18. Prompt Refinement Phase
+
+Interactive prompt refinement that runs before data collection. LLM analyzes and optimizes user prompts, asking clarifying questions when ambiguous.
+
+### 18.1 Type Definitions
+
+**File: `src/refinement/types.ts`**
+- [x] Define `RefinementModel` type: `'gemini' | 'gpt' | 'claude' | 'kimi2'`
+- [x] Define `RefinementConfig` interface:
+  ```typescript
+  interface RefinementConfig {
+    skip: boolean;              // --skip-refinement flag
+    model: RefinementModel;     // --refinement-model option
+    maxIterations: number;      // Default: 3
+    timeoutMs: number;          // Default: 30000
+  }
+  ```
+- [x] Define `PromptAnalysis` interface:
+  ```typescript
+  interface PromptAnalysis {
+    isClear: boolean;
+    confidence: number;         // 0.0 - 1.0
+    clarifyingQuestions?: string[];
+    suggestedRefinement?: string;
+    reasoning: string;
+    detectedIntents?: string[];
+  }
+  ```
+- [x] Define `RefinementResult` interface:
+  ```typescript
+  interface RefinementResult {
+    refinedPrompt: string;
+    originalPrompt: string;
+    wasRefined: boolean;
+    iterationCount: number;
+    modelUsed: RefinementModel;
+    processingTimeMs: number;
+  }
+  ```
+- [x] Define `UserResponse` interface for handling user input
+
+### 18.2 Zod Schemas
+
+**File: `src/refinement/schemas.ts`**
+- [x] Create `PromptAnalysisSchema`:
+  - [x] Validate isClear boolean
+  - [x] Validate confidence 0-1 range
+  - [x] Require clarifyingQuestions when isClear=false
+  - [x] Validate suggestedRefinement when isClear=true
+- [x] Create `RefinementResponseSchema` for LLM response validation
+- [x] Create `UserAnswersSchema` for collecting clarifying answers
+
+### 18.3 CLI Stdin Utilities
+
+**File: `src/utils/stdin.ts`**
+- [x] Implement `createReadlineInterface()`:
+  - [x] Create readline.Interface for stdin/stdout
+- [x] Implement `askQuestion(rl, question)`:
+  - [x] Prompt user and return answer string
+- [x] Implement `askYesNo(rl, question, defaultValue)`:
+  - [x] Return boolean for Y/n style questions
+- [x] Implement `displayRefinedPrompt(prompt)`:
+  - [x] Format and display the refined prompt with styling
+- [x] Implement `displayClarifyingQuestions(questions)`:
+  - [x] Format numbered question list
+- [x] Implement `collectAnswers(rl, questions)`:
+  - [x] Iterate through questions and collect answers
+  - [x] Return answers as Record<string, string>
+- [x] Implement `askAcceptRejectFeedback(rl)`:
+  - [x] Handle Y/n/feedback user responses
+  - [x] Return action and optional feedback text
+- [x] Implement `closeReadline(rl)`:
+  - [x] Clean up readline interface
+- [x] Add display helper functions:
+  - [x] `displayAnalyzing()` - Show analyzing message
+  - [x] `displaySuccess(message)` - Show green success message
+  - [x] `displayWarning(message)` - Show yellow warning message
+  - [x] `displaySkipping(reason)` - Show skip message
+  - [x] `displayUsingOriginal()` - Show original prompt usage message
+
+### 18.4 System Prompts
+
+**File: `src/refinement/prompts.ts`**
+- [x] Define `DELIMITERS` for prompt injection defense:
+  - [x] USER_PROMPT_START/END markers
+  - [x] USER_ANSWERS_START/END markers
+  - [x] FEEDBACK_START/END markers
+- [x] Define `ANALYSIS_SYSTEM_PROMPT`:
+  - [x] Instructions for analyzing prompt clarity
+  - [x] Criteria for determining if prompt is clear vs ambiguous (5 dimensions)
+  - [x] JSON output format requirements
+  - [x] Security instructions for delimiter handling
+- [x] Define `REFINEMENT_SYSTEM_PROMPT`:
+  - [x] Instructions for combining prompt with Q&A
+  - [x] JSON output format requirements
+- [x] Define `FEEDBACK_SYSTEM_PROMPT`:
+  - [x] Instructions for adjusting based on user feedback
+  - [x] JSON output format requirements
+- [x] Implement `buildAnalysisPrompt(userPrompt)`:
+  - [x] Sanitize user prompt with `sanitizePromptContent()`
+  - [x] Wrap user prompt in delimiters
+  - [x] Request JSON response format
+- [x] Implement `buildRefinementPrompt(original, questions, answers)`:
+  - [x] Sanitize all user inputs
+  - [x] Combine original prompt with Q&A context
+  - [x] Request optimized refined prompt
+- [x] Implement `buildFeedbackPrompt(original, previousRefinement, feedback)`:
+  - [x] Sanitize all inputs
+  - [x] Include previous refinement and feedback
+  - [x] Request adjusted refinement
+- [x] Implement utility functions:
+  - [x] `extractJsonFromResponse(response)` - Strip markdown fences and extract JSON
+  - [x] `looksLikeJson(text)` - Quick validation check
+
+### 18.5 Model Integrations
+
+**File: `src/refinement/gemini.ts`** (Default)
+- [x] Implement `analyzeWithGemini(prompt, config)`:
+  - [x] Use GoogleGenAI client (singleton pattern)
+  - [x] Model: `gemini-2.0-flash-exp` or latest
+  - [x] Apply timeout with Promise.race
+  - [x] Retry with exponential backoff
+  - [x] Parse and validate response
+- [x] Follow patterns from `src/prompts/breakdown.ts`
+
+**File: `src/refinement/gpt.ts`**
+- [x] Implement `analyzeWithGPT(prompt, config)`:
+  - [x] Use OpenAI client (reuse getOpenAIClient)
+  - [x] Model: `gpt-5.2` with reasoningEffort: 'low'
+  - [x] JSON response format
+  - [x] Timeout and retry handling
+- [x] Follow patterns from `src/synthesis/gpt.ts`
+
+**File: `src/refinement/claude.ts`** (NEW PROVIDER)
+- [x] Add `@anthropic-ai/sdk` dependency to package.json
+- [x] Implement `getAnthropicClient()` singleton:
+  - [x] Validate ANTHROPIC_API_KEY
+  - [x] Create client with race condition protection
+- [x] Implement `analyzeWithClaude(prompt, config)`:
+  - [x] Model: `claude-sonnet-4-5-20241022`
+  - [x] Timeout and retry handling
+  - [x] Response parsing and validation
+- [x] Export client getter for potential reuse
+
+**File: `src/refinement/kimi.ts`**
+- [x] Implement `analyzeWithKimi(prompt, config)`:
+  - [x] Reuse OpenRouter patterns from `src/scoring/openrouter.ts`
+  - [x] Model: `moonshotai/kimi-k2-thinking`
+  - [x] Reasoning effort: low (for speed)
+  - [x] Timeout and retry handling
+
+### 18.6 Main Orchestrator
+
+**File: `src/refinement/index.ts`**
+- [x] Export all types and schemas
+- [x] Implement `refinePrompt(prompt, config)`:
+  ```typescript
+  async function refinePrompt(
+    prompt: string,
+    config: RefinementConfig
+  ): Promise<RefinementResult> {
+    // 1. Skip if config.skip is true
+    // 2. Select model based on config.model
+    // 3. Loop up to maxIterations:
+    //    a. Analyze prompt
+    //    b. If clear: show refined, ask to accept
+    //    c. If not clear: ask questions, collect answers
+    //    d. User can: accept, reject, or provide feedback
+    // 4. Return RefinementResult
+  }
+  ```
+- [x] Implement `selectAnalyzer(model)`:
+  - [x] Return appropriate analyze function based on model
+- [x] Handle escape hatch: user types 'skip' or Ctrl+C
+- [x] Implement graceful timeout handling
+
+### 18.7 CLI Integration
+
+**File: `src/cli/program.ts`**
+- [x] Add `--skip-refinement` option:
+  ```typescript
+  .option('--skip-refinement', 'Skip prompt refinement phase')
+  ```
+- [x] Add `--refinement-model <model>` option:
+  ```typescript
+  .option('--refinement-model <model>',
+    'Refinement model: gemini|gpt|claude|kimi2', 'gemini')
+  ```
+- [x] Update CommanderOptions interface
+- [x] Update isValidCommanderOptions validation
+- [x] Update parseCliOptions to handle new options
+
+**File: `src/config.ts`**
+- [x] Add `ANTHROPIC_API_KEY` to ENV_KEYS
+- [x] Implement `parseRefinementModel(modelStr)`:
+  - [x] Validate against allowed values
+  - [x] Log warning on invalid, return 'gemini'
+- [x] Update `CliOptions` interface with new fields
+- [x] Update `buildConfig()` to parse refinement options
+- [x] Update `validateApiKeys()`:
+  - [x] Check ANTHROPIC_API_KEY when claude model selected
+
+**File: `src/types/index.ts`**
+- [x] Add `RefinementModel` type export
+- [x] Add `RefinementConfig` to `PipelineConfig` interface
+
+### 18.8 Pipeline Integration
+
+**File: `src/cli/runPipeline.ts`**
+- [x] Import refinePrompt from refinement module
+- [x] Add Stage 0 before Collection:
+  ```typescript
+  // Stage 0: Prompt Refinement
+  if (!config.refinement.skip) {
+    logStage('Prompt Refinement');
+    const refinementResult = await refinePrompt(prompt, config.refinement);
+    prompt = refinementResult.refinedPrompt;
+    logVerbose(`Prompt refined: "${refinementResult.originalPrompt}" → "${prompt}"`);
+  }
+
+  // Stage 1: Collection (existing)
+  const collection = await collectAll(prompt, config);
+  ```
+- [x] Update PipelineState if needed for refinement tracking
+- [x] Pass refined prompt to all subsequent stages
+
+### 18.9 Tests
+
+**File: `tests/unit/refinement-schemas.test.ts`** (NEW)
+- [x] Test RefinementModelSchema:
+  - [x] Valid model values (gemini, gpt, claude, kimi2)
+  - [x] Invalid model rejection (openai, anthropic, empty)
+- [x] Test RefinementConfigSchema:
+  - [x] Valid config with all fields
+  - [x] Invalid maxIterations bounds
+  - [x] Invalid timeoutMs bounds
+- [x] Test PromptAnalysisSchema validation:
+  - [x] Valid clear prompt analysis
+  - [x] Valid ambiguous prompt analysis
+  - [x] Rejection of invalid confidence values
+  - [x] Requirement of questions when isClear=false
+- [x] Test RefinementResponseSchema:
+  - [x] Valid response with all fields
+  - [x] Invalid refinedPrompt length
+- [x] Test UserActionSchema and UserResponseSchema:
+  - [x] Valid actions (accept, reject, feedback)
+  - [x] Feedback action requires feedback text
+- [x] Test UserAnswersSchema:
+  - [x] Valid with non-empty answers
+  - [x] Invalid with all empty answers
+- [x] Test RefinementResultSchema:
+  - [x] Valid complete result
+  - [x] Invalid iterationCount/processingTimeMs
+- [x] Test validation helpers:
+  - [x] isValidRefinementModel()
+  - [x] parsePromptAnalysis()
+  - [x] parseRefinementResponse()
+  - [x] formatValidationError()
+
+**File: `tests/unit/stdin.test.ts`** (NEW)
+- [x] Test createReadlineInterface() and closeReadline()
+- [x] Test askQuestion() with trimmed input
+- [x] Test askYesNo() handles Y/n/empty/various cases
+- [x] Test askAcceptRejectFeedback() accept/reject/feedback flows
+- [x] Test display helpers (displayAnalyzing, displaySuccess, displayWarning, displaySkipping)
+- [x] Test collectAnswers()
+
+**File: `tests/unit/refinement-prompts.test.ts`** (NEW)
+- [x] Test DELIMITERS constants:
+  - [x] All delimiter keys exist with <<<NAME>>> format
+  - [x] Unique values, matching START/END pairs
+- [x] Test buildAnalysisPrompt:
+  - [x] Proper delimiter wrapping and positioning
+  - [x] System prompt content present
+  - [x] Sanitization of prompt injection attempts
+  - [x] Truncation of long prompts (>2000 chars)
+- [x] Test buildRefinementPrompt:
+  - [x] Q&A formatting with delimiters
+  - [x] Support for 1-indexed and 0-indexed answer keys
+  - [x] Missing answer handling
+  - [x] Input sanitization
+- [x] Test buildFeedbackPrompt:
+  - [x] Three-section structure (original, refinement, feedback)
+  - [x] Input sanitization for all parameters
+  - [x] Feedback truncation (>1000 chars)
+- [x] Test extractJsonFromResponse:
+  - [x] Markdown fence removal
+  - [x] Leading/trailing text handling
+  - [x] Complex nested JSON extraction
+- [x] Test looksLikeJson:
+  - [x] Valid JSON object/array detection
+  - [x] Invalid/incomplete JSON rejection
+  - [x] Whitespace handling
+- [x] Security tests:
+  - [x] Delimiter injection attacks
+  - [x] Role injection (system:/assistant:)
+  - [x] Instruction override patterns
+  - [x] Template injection (Jinja, Mustache)
+
+**File: `tests/unit/config.test.ts`**
+- [x] Add tests for refinement config parsing:
+  - [x] parseRefinementModel() valid/invalid values
+  - [x] buildConfig() with refinement options
+- [x] Test API key validation for claude model (ANTHROPIC_API_KEY)
+- [x] Test API key validation for kimi2 model (OPENROUTER_API_KEY)
+
+**File: `tests/mocks/`**
+- [x] Create `refinement_clear_response.json` fixture
+- [x] Create `refinement_ambiguous_response.json` fixture
+
+### 18.10 Documentation
+
+- [x] Update PRD-v2.md with new Section 14 (Prompt Refinement)
+- [x] Update PRD Architecture diagram to show Stage 0
+- [x] Update PRD CLI options table
+- [x] Update PRD Environment Variables
+- [x] Add example usage to docs/HowTo.md
+- [x] Update changelog in both PRD and TODO
+
+---
+
 ## API Documentation Links
 
 | Service | Documentation |
@@ -1093,6 +1567,19 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
 ---
 
 ## Changelog
+
+### v2.3.0 (2025-12-30)
+- Added Section 18: Prompt Refinement Phase
+- Interactive prompt refinement with hybrid LLM analysis
+- New CLI options: `--skip-refinement` and `--refinement-model <model>`
+- Support for 4 refinement models: Gemini 3.0 Flash, GPT-5.2, Claude Sonnet 4.5, Kimi 2
+- New Anthropic SDK integration for Claude support
+
+### v2.2.0 (2025-12-30)
+- Added Section 17: Multi-Post Generation
+- New CLI options: `--post-count` (1-3) and `--post-style` (series|variations)
+- Support for generating multiple post variations for A/B testing
+- Support for connected multi-part series posts
 
 ### v2.1.0 (2025-12-30)
 - Added Section 16: Phase 1 Enhancements

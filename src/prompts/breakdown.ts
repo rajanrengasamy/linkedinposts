@@ -10,7 +10,7 @@
  */
 
 import { z } from 'zod';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { getApiKey } from '../config.js';
 import { withRetry, QUICK_RETRY_OPTIONS } from '../utils/retry.js';
 import { logVerbose, logWarning } from '../utils/logger.js';
@@ -34,9 +34,17 @@ const MAX_QUERY_LENGTH = 50;
 
 /**
  * Gemini model to use for prompt breakdown.
- * Using flash for speed and low cost since this is a simple extraction task.
+ * Using Gemini 3 Flash for speed and low cost since this is a simple extraction task.
+ * @see https://ai.google.dev/gemini-api/docs/gemini-3
  */
-const BREAKDOWN_MODEL = 'gemini-2.0-flash';
+const BREAKDOWN_MODEL = 'gemini-3-flash-preview';
+
+/**
+ * Thinking level for Gemini 3 Flash prompt breakdown.
+ * LOW for speed since this is a simple keyword extraction task.
+ * @see https://ai.google.dev/gemini-api/docs/thinking
+ */
+const BREAKDOWN_THINKING_LEVEL = ThinkingLevel.LOW;
 
 // ============================================
 // Types & Schemas
@@ -292,6 +300,11 @@ export async function breakdownForSocialSearch(
         const response = await client.models.generateContent({
           model: BREAKDOWN_MODEL,
           contents: breakdownPrompt,
+          config: {
+            thinkingConfig: {
+              thinkingLevel: BREAKDOWN_THINKING_LEVEL,
+            },
+          },
         });
 
         const text = response.text;

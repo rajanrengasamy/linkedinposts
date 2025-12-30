@@ -1,0 +1,7 @@
+{
+  "isClear": true,
+  "confidence": 0.85,
+  "suggestedRefinement": "AI adoption trends in healthcare diagnostics for 2025, focusing on machine learning integration in radiology and pathology departments, with emphasis on ROI data and implementation challenges for hospital IT leaders",
+  "reasoning": "The original prompt 'AI in healthcare' was too broad. This refinement adds specificity around: (1) the sub-domain (diagnostics), (2) timeframe (2025), (3) specific applications (radiology/pathology), and (4) target audience (hospital IT leaders).",
+  "detectedIntents": ["industry-specific", "data-driven", "decision-maker-focused"]
+}

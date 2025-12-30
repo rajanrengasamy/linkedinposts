@@ -14,7 +14,7 @@
  * Main function to generate infographic images (non-blocking).
  * Returns null on skip or failure; pipeline continues without image.
  */
-export { generateInfographic } from './nanoBanana.js';
+export { generateInfographic, generateMultipleInfographics } from './nanoBanana.js';
 
 /**
  * Get the cost for image generation based on resolution.

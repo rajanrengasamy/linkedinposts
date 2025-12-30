@@ -2,6 +2,7 @@
  * Pipeline Orchestration
  *
  * Main pipeline execution function that orchestrates all stages:
+ * 0. Refinement - Analyze and optimize user prompt (optional)
  * 1. Collection - Gather content from sources
  * 2. Validation - Verify quotes and claims
  * 3. Scoring - Score and rank content
@@ -14,6 +15,7 @@
  * @see docs/PRD-v2.md Section 12 for full requirements
  */
 
+import { readFileSync, existsSync } from 'fs';
 import type {
   PipelineConfig,
   PipelineResult,
@@ -21,14 +23,17 @@ import type {
   SynthesisResult,
   SourceReference,
   CostBreakdown,
+  ScoredItem,
 } from '../types/index.js';
+import type { LinkedInPost } from '../schemas/index.js';
 
 // Stage imports
+import { refinePrompt } from '../refinement/index.js';
 import { collectAll } from '../collectors/index.js';
 import { validateItems } from '../validation/perplexity.js';
-import { scoreItems } from '../scoring/index.js';
+import { score } from '../scoring/index.js';
 import { extractGroundedClaims, synthesize, buildSourceReferences } from '../synthesis/index.js';
-import { generateInfographic } from '../image/index.js';
+import { generateInfographic, generateMultipleInfographics } from '../image/index.js';
 
 // Utility imports
 import { createOutputWriter, createOutputWriterFromDir, type OutputWriter } from '../utils/fileWriter.js';
@@ -91,6 +96,41 @@ function getTopScoredCount(config: PipelineConfig): number {
   return config.topScored ?? 50;
 }
 
+/**
+ * Load scored items from a JSON file.
+ * Used for resuming pipeline from scored_data.json.
+ *
+ * @param filePath - Path to scored_data.json
+ * @returns Array of scored items
+ * @throws Error if file doesn't exist or is invalid
+ */
+function loadScoredData(filePath: string): ScoredItem[] {
+  if (!existsSync(filePath)) {
+    throw new Error(`FATAL: Scored data file not found: ${filePath}`);
+  }
+
+  try {
+    const content = readFileSync(filePath, 'utf-8');
+    const data = JSON.parse(content) as ScoredItem[];
+
+    if (!Array.isArray(data)) {
+      throw new Error('Scored data must be an array');
+    }
+
+    if (data.length === 0) {
+      throw new Error('Scored data is empty');
+    }
+
+    logVerbose(`Loaded ${data.length} items from ${filePath}`);
+    return data;
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new Error(`FATAL: Invalid JSON in scored data file: ${filePath}`);
+    }
+    throw error;
+  }
+}
+
 // ============================================
 // Main Pipeline Function
 // ============================================
@@ -107,6 +147,7 @@ export interface PipelineOptions {
  * Execute the full pipeline.
  *
  * Orchestrates all pipeline stages in order:
+ * 0. Refinement - Analyze and optimize user prompt (optional)
  * 1. Collection - Gather content from sources
  * 2. Validation - Verify quotes and claims
  * 3. Scoring - Score and rank content
@@ -143,32 +184,77 @@ export async function runPipeline(
   logInfo(`Pipeline started for: "${prompt}"`);
   logVerbose(`Output directory: ${outputWriter.outputDir}`);
 
-  // Stage 1: Collection
-  const collection = await collectAll(prompt, config);
+  // Make prompt mutable for potential refinement
+  let currentPrompt = prompt;
 
-  if (config.saveRaw) {
-    await state.outputWriter.writeRawData(collection.items);
-    logVerbose('Saved raw_data.json');
+  // Variables for pipeline stages
+  let scoredItems: ScoredItem[];
+  let topItems: ScoredItem[];
+  const topCount = getTopScoredCount(config);
+
+  // Check if resuming from scored data
+  if (config.fromScored) {
+    // Resume mode: skip stages 0-3, load scored data directly
+    logInfo(`Resuming from scored data: ${config.fromScored}`);
+    logStage('Loading Scored Data');
+
+    scoredItems = loadScoredData(config.fromScored);
+    topItems = scoredItems.slice(0, topCount);
+
+    logSuccess(`Loaded ${scoredItems.length} scored items, using top ${topItems.length}`);
+    logVerbose('Skipped: refinement, collection, validation, scoring');
+  } else {
+    // Normal mode: run all stages
+
+    // Stage 0: Prompt Refinement
+    if (!config.refinement.skip) {
+      state.currentStage = 'refinement';
+      logStage('Prompt Refinement');
+
+      try {
+        const refinementResult = await refinePrompt(prompt, config.refinement);
+        currentPrompt = refinementResult.refinedPrompt;
+
+        if (refinementResult.wasRefined) {
+          logVerbose(`Prompt refined in ${refinementResult.processingTimeMs}ms`);
+          logVerbose(`Original: "${refinementResult.originalPrompt}"`);
+          logVerbose(`Refined: "${currentPrompt}"`);
+        } else {
+          logVerbose('Prompt used as-is (no refinement applied)');
+        }
+      } catch (error) {
+        logWarning(`Refinement failed: ${error instanceof Error ? error.message : String(error)}`);
+        logWarning('Continuing with original prompt');
+        // Don't throw - refinement failure is non-fatal
+      }
+    }
+
+    // Stage 1: Collection
+    const collection = await collectAll(currentPrompt, config);
+
+    if (config.saveRaw) {
+      await state.outputWriter.writeRawData(collection.items);
+      logVerbose('Saved raw_data.json');
+    }
+
+    // Stage 2: Validation
+    state.currentStage = 'validation';
+    const validatedItems = await validateItems(collection.items, currentPrompt, config);
+    await state.outputWriter.writeValidatedData(validatedItems);
+    logVerbose(`Validated ${validatedItems.length} items`);
+
+    // Stage 3: Scoring
+    state.currentStage = 'scoring';
+    logStage('Scoring');
+    scoredItems = await score(validatedItems, currentPrompt, config);
+    await state.outputWriter.writeScoredData(scoredItems);
+
+    topItems = scoredItems.slice(0, topCount);
+    await state.outputWriter.writeTop50(topItems);
+    logVerbose(`Scored ${scoredItems.length} items, top ${topItems.length} saved`);
   }
 
-  // Stage 2: Validation
-  state.currentStage = 'validation';
-  const validatedItems = await validateItems(collection.items, prompt, config);
-  await state.outputWriter.writeValidatedData(validatedItems);
-  logVerbose(`Validated ${validatedItems.length} items`);
-
-  // Stage 3: Scoring
-  state.currentStage = 'scoring';
-  logStage('Scoring');
-  const scoredItems = await scoreItems(validatedItems, prompt, config);
-  await state.outputWriter.writeScoredData(scoredItems);
-
-  const topCount = getTopScoredCount(config);
-  const topItems = scoredItems.slice(0, topCount);
-  await state.outputWriter.writeTop50(topItems);
-  logVerbose(`Scored ${scoredItems.length} items, top ${topItems.length} saved`);
-
-  // Stage 4: Synthesis
+  // Stage 4: Synthesis (runs for both normal and resume modes)
   state.currentStage = 'synthesis';
   logStage('Synthesis');
 
@@ -179,10 +265,17 @@ export async function runPipeline(
     logWarning('No grounded claims extracted - synthesis may produce limited output');
   }
 
-  const synthesis = await synthesize(claims, prompt, config);
+  const synthesis = await synthesize(claims, currentPrompt, config);
   await state.outputWriter.writeSynthesis(synthesis);
-  await state.outputWriter.writeLinkedInPost(synthesis.linkedinPost);
-  logSuccess(`Generated LinkedIn post (${synthesis.linkedinPost.length} characters)`);
+
+  // Handle post output based on multi-post mode
+  if (synthesis.posts && synthesis.posts.length > 1) {
+    await state.outputWriter.writeLinkedInPosts(synthesis.posts);
+    logSuccess(`Generated ${synthesis.posts.length} LinkedIn posts`);
+  } else {
+    await state.outputWriter.writeLinkedInPost(synthesis.linkedinPost);
+    logSuccess(`Generated LinkedIn post (${synthesis.linkedinPost.length} characters)`);
+  }
 
   state.synthesis = synthesis;
   state.costs = synthesis.metadata.estimatedCost;
@@ -192,13 +285,27 @@ export async function runPipeline(
     state.currentStage = 'image';
     logStage('Image Generation');
 
-    const image = await generateInfographic(synthesis.infographicBrief, config);
+    if (synthesis.posts && synthesis.posts.length > 1) {
+      // Multi-post: generate multiple infographics
+      const imageResults = await generateMultipleInfographics(synthesis.posts, config);
+      await state.outputWriter.writeInfographics(imageResults);
 
-    if (image) {
-      await state.outputWriter.writeInfographic(image);
-      logSuccess(`Generated infographic (${image.length} bytes)`);
+      const successCount = imageResults.filter((r) => r !== null).length;
+      if (successCount > 0) {
+        logSuccess(`Generated ${successCount}/${synthesis.posts.length} infographics`);
+      } else {
+        logWarning('All infographic generations failed');
+      }
     } else {
-      logWarning('Image generation returned null - continuing without infographic');
+      // Single post: backward compatible
+      const image = await generateInfographic(synthesis.infographicBrief, config);
+
+      if (image) {
+        await state.outputWriter.writeInfographic(image);
+        logSuccess(`Generated infographic (${image.length} bytes)`);
+      } else {
+        logWarning('Image generation returned null');
+      }
     }
   }
 

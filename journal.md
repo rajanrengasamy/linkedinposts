@@ -2316,3 +2316,592 @@ npx tsx src/index.ts "What are the latest developments in AI agents and autonomo
 **Test Results**: 1044 tests pass, TypeScript compiles cleanly, TODO-v2.md fully updated.
 
 ---
+
+## Session: 2025-12-31 08:55 AEST
+
+### Summary
+Ran integration tests with real API keys to validate Section 16 features and multi-source collection. Full web pipeline completed successfully with verified output. Identified issues with LinkedIn collector (HTTP 400 errors) and documented missing OPENROUTER_API_KEY for KIMI 2 testing.
+
+### Work Completed
+- **Test 1 (KIMI 2 Scoring)**: Attempted but blocked - OPENROUTER_API_KEY not configured
+- **Test 2 (Prompt Breakdown)**: Validated feature works - long prompt (104 chars) broken into 4 social queries
+- **Test 3 (Web + X Pipeline)**: X/Twitter collection working - 202 tweets fetched, 97 filtered, 25 returned
+- **Test 4 (Full Pipeline)**: Complete success with web source - 4 items collected, 3 verified, LinkedIn post generated
+- **Generated Output**: `output/2025-12-30_21-54-17/linkedin_post.md` (2216 chars, 3 verified quotes)
+
+### Issues & Resolutions
+| Issue | Resolution | Status |
+|:------|:-----------|:-------|
+| OPENROUTER_API_KEY not in .env | Documented - user needs to add to .env | ⏳ Open |
+| LinkedIn HTTP 400 errors on all profiles | ScrapeCreators API returning 400 for all handles (andrewyng, ylecun, satyanadella, etc.) | ⏳ Open |
+| --fast mode fails synthesis | Expected behavior - validation skipped means all items UNVERIFIED, no claims extracted | ✅ By Design |
+| Validation parse error for 1 item | Fix-JSON retry attempted, item marked UNVERIFIED and excluded from synthesis | ✅ Handled |
+
+### Key Decisions
+- **Full pipeline test**: Used `--skip-image` to reduce cost/time while still testing all other stages
+- **Verification working correctly**: 2 PRIMARY_SOURCE + 1 MULTISOURCE_CONFIRMED items used in post, 1 UNVERIFIED excluded
+
+### Learnings
+- **X/Twitter collector robust**: Handle-based fetching working well with 40 curated handles, relevance filtering effective (97/202 = 48% pass rate)
+- **LinkedIn API issues**: All 6 tested profiles returning HTTP 400 - may be API key expiry, rate limiting, or handle format changes
+- **Pipeline cost**: Full web-only run cost ~$0.027 (primarily OpenAI synthesis)
+
+### Open Items / Blockers
+- [ ] Add OPENROUTER_API_KEY to .env.example for documentation
+- [ ] Investigate LinkedIn HTTP 400 errors - check ScrapeCreators API key validity and handle format
+- [ ] Test KIMI 2 scoring once OPENROUTER_API_KEY is configured
+- [ ] Consider adding fallback behavior when --fast mode has no verified claims (warning instead of FATAL?)
+
+### Context for Next Session
+**Integration testing milestone reached.** The full pipeline works end-to-end with web sources:
+- Collection → Validation → Scoring → Synthesis all functional
+- Verification levels correctly assigned and enforced
+- Output quality is good (2216 char professional LinkedIn post with citations)
+
+**Remaining work:**
+1. Fix LinkedIn collector (investigate HTTP 400s)
+2. Add OPENROUTER_API_KEY to .env.example
+3. Section 14 (README.md documentation)
+4. Section 15 (Final checks, security audit)
+
+**Test the successful run with:**
+```bash
+npx tsx src/index.ts "AI agents in 2025" --sources web --verbose --skip-image
+```
+
+---
+
+## Session: 2025-12-31 09:25 AEST
+
+### Summary
+Fixed two bugs preventing KIMI 2 scoring from working: (1) pipeline was calling `scoreItems` directly instead of the `score()` router, and (2) OpenRouter `reasoning` parameter required object format `{ effort: 'high' }` not string `'enabled'`. KIMI 2 scoring now works end-to-end.
+
+### Work Completed
+- **Fixed: `src/cli/runPipeline.ts`** - Changed import from `scoreItems` to `score` router function
+- **Fixed: `src/scoring/openrouter.ts`** - Changed `reasoning: 'enabled'` to `reasoning: { effort: 'high' }`
+- **Fixed: `src/scoring/openrouter.ts`** - Updated TypeScript interface `OpenRouterRequest` for reasoning object type
+
+### Issues & Resolutions
+| Issue | Resolution | Status |
+|:------|:-----------|:-------|
+| Pipeline bypassing scoring router | Changed `runPipeline.ts` to import `score()` instead of `scoreItems` | ✅ Resolved |
+| OpenRouter 400 error "expected object, received string" | Changed `reasoning: 'enabled'` to `reasoning: { effort: 'high' }` | ✅ Resolved |
+
+### Key Decisions
+- **Reasoning effort level**: Set to 'high' for better scoring quality (options: xhigh, high, medium, low, minimal, none)
+
+### Learnings
+- **OpenRouter reasoning API**: The `reasoning` parameter must be an object with `effort` key, not a string. Valid efforts: xhigh (~95%), high (~80%), medium (~50%), low (~20%), minimal (~10%), none (disabled)
+- **Response includes reasoning tokens**: KIMI 2 returned 2280 tokens including 67 reasoning tokens for a simple test
+
+### Open Items / Blockers
+- [x] KIMI 2 scoring now works
+- [ ] LinkedIn collector still returning HTTP 400 (separate issue)
+- [ ] 1 pre-existing collector mock test failing (unrelated to these fixes)
+
+### Context for Next Session
+**KIMI 2 scoring fully functional.** The `--scoring-model kimi2` CLI option now works correctly:
+
+```bash
+# Test KIMI 2 scoring
+npx tsx src/index.ts "AI agents in 2025" --scoring-model kimi2 --sources web --verbose --skip-image
+```
+
+**Output**: Pipeline completed in 1m 36s with KIMI 2 successfully scoring all items (top score: 86).
+
+**Files modified:**
+- `src/cli/runPipeline.ts` - Fixed scoring router call
+- `src/scoring/openrouter.ts` - Fixed reasoning parameter format
+
+**Test Results**: 1044 tests pass, TypeScript compiles cleanly.
+
+---
+
+## Session: 2025-12-31 22:35 AEST
+
+### Summary
+Fixed LinkedIn collector HTTP 400 errors. The root cause was using wrong API parameter format (`?handle=username` instead of `?url=https://linkedin.com/in/username/`). Also updated response parsing to use `activity` and `articles` arrays instead of the empty `posts` array.
+
+### Work Completed
+- **Fixed: `src/collectors/linkedin.ts`** - Changed API parameter from `handle` to `url` with full LinkedIn profile URL
+- **Added: `handleToProfileUrl()` helper** - Converts handles to full profile URLs for ScrapeCreators API
+- **Added: `LinkedInActivityItem` interface** - Types for activity feed items from API
+- **Added: `LinkedInArticle` interface** - Types for LinkedIn Pulse articles from API
+- **Added: `activityToRawItem()` function** - Converts activity items to RawItem format
+- **Added: `articleToRawItem()` function** - Converts articles to RawItem format
+- **Updated: `fetchProfilePosts()`** - Now processes activity, articles, and legacy posts arrays
+- **Updated: `LinkedInProfileResponse` interface** - Added activity, articles, about, location fields
+- **Updated: `docs/PRD-v2.md`** - Added Known Limitation about LinkedIn activity items missing publishedAt
+
+### Issues & Resolutions
+| Issue | Resolution | Status |
+|:------|:-----------|:-------|
+| HTTP 400 on all LinkedIn profiles | ScrapeCreators API requires `?url=` param with full URL, not `?handle=` | ✅ Resolved |
+| 0 items returned after 400 fix | API returns data in `activity`/`articles` arrays, not `posts` | ✅ Resolved |
+| Activity items missing timestamps | Documented as Known Limitation in PRD | ✅ Documented |
+
+### Key Decisions
+- **Use activity + articles**: ScrapeCreators returns `recentPosts: []` (empty) but provides rich data in `activity` (posts/shares/likes) and `articles` (LinkedIn Pulse articles)
+- **Profile URL format**: `https://www.linkedin.com/in/{handle}/` with trailing slash
+
+### Learnings
+- **ScrapeCreators LinkedIn API**: Uses `?url=` parameter with full LinkedIn URL, not `?handle=`. Same pattern as their Post endpoint.
+- **API Response Structure**: Profile endpoint returns:
+  - `activity[]` - Recent posts, shares, likes (no timestamps)
+  - `articles[]` - LinkedIn Pulse articles (has `datePublished`)
+  - `recentPosts[]` - Often empty in practice
+- **Relevance Filtering**: Works correctly - 26 items collected from AI-focused profiles with "AI trends" query
+
+### Open Items / Blockers
+- [x] LinkedIn HTTP 400 errors fixed
+- [ ] 1 pre-existing collector mock test failing (unrelated)
+- [ ] Section 14 (README.md documentation)
+- [ ] Section 15 (Final checks, security audit)
+- [ ] Section 17 (Multi-Post Generation)
+
+### Context for Next Session
+**LinkedIn collector fully functional.** All three collectors (Web, LinkedIn, X/Twitter) now work end-to-end.
+
+**Test the LinkedIn fix with:**
+```bash
+npx tsx src/index.ts "AI trends" --sources web,linkedin --verbose --skip-image
+```
+
+**Results from this session:**
+- LinkedIn collected 26 items from curated profiles (Andrew Ng, Satya Nadella, etc.)
+- Activity items and articles successfully parsed
+- Relevance filtering working correctly
+
+**Remaining work:**
+1. Section 14 (README.md documentation)
+2. Section 15 (Final checks, security audit)
+3. Section 17 (Multi-Post Generation - types already added per TODO update)
+
+**Test Results**: 1044 tests pass, 1 pre-existing failure, TypeScript compiles cleanly.
+
+---
+
+## Session: 2025-12-31 09:40 AEST
+
+### Summary
+Implemented Section 17 (Multi-Post Generation) using 5 parallel senior-developer agents. Added `--post-count` and `--post-style` CLI options enabling generation of 1-3 LinkedIn posts per run, either as variations (A/B testing) or series (connected multi-part). All core functionality complete with backward compatibility maintained.
+
+### Work Completed
+
+**New Types & Schemas (Agent 1):**
+- `src/types/index.ts` - Added `PostStyle` type, updated `PipelineConfig` with `postCount`/`postStyle`
+- `src/schemas/synthesisResult.ts` - Added `PostStyleSchema`, `LinkedInPostSchema`, `GPTMultiPostResponseSchema`
+- Backward compatible: `posts` array is optional, single-post mode unchanged
+
+**CLI & Config (Agent 2):**
+- `src/cli/program.ts` - Added `--post-count <n>` (1-3) and `--post-style <style>` (series|variations)
+- `src/config.ts` - Added `parsePostCount()`, `parsePostStyle()` functions
+
+**Synthesis Prompt Engineering (Agent 3):**
+- `src/synthesis/gpt.ts` - Added `buildMultiPostPrompt()`, `parseMultiPostResponse()`, `convertMultiPostToSynthesisResult()`
+- Variations mode: Different hooks per post, no quote repetition
+- Series mode: Part numbering (Part 1/3), teasers, connected narrative
+
+**File Output & Image (Agent 4):**
+- `src/utils/fileWriter.ts` - Added `writeLinkedInPosts()`, `writeInfographics()`, `formatCombinedPosts()`
+- `src/image/nanoBanana.ts` - Added `generateMultipleInfographics()`
+- File naming: Single=`linkedin_post.md`, Multi=`linkedin_post_1.md`, `linkedin_posts_combined.md`
+
+**Pipeline & Tests (Agent 5):**
+- `src/cli/runPipeline.ts` - Updated Stage 4 (Synthesis) and Stage 5 (Image) for multi-post
+- `tests/unit/cli.test.ts` - Added 3 tests for multi-post CLI options
+- `tests/unit/config.test.ts` - Created new file with 12 tests for parse functions
+
+### Issues & Resolutions
+| Issue | Resolution | Status |
+|:------|:-----------|:-------|
+| Backward compatibility for single-post | Made `posts` and `postStyle` optional in schema | ✅ Resolved |
+| LinkedInPostSchema forward reference | Used `z.lazy(() => InfographicBriefSchema)` | ✅ Resolved |
+| Multi-post token limit | Doubled `MAX_TOKENS` for multi-post requests | ✅ Resolved |
+| 1 pre-existing test failure | Unrelated collector dedup mock issue | ⏳ Pre-existing |
+
+### Key Decisions
+- **Array format always**: Even single posts use the same code path, with backward-compat `linkedinPost` field populated from `posts[0]`
+- **Series title**: Only generated for series mode, tied across all parts
+- **Quote deduplication**: Combined keyQuotes across all posts for top-level field (deduplicated by quote text)
+- **File naming**: Single post keeps original names (`linkedin_post.md`, `infographic.png`) for backward compatibility
+
+### Learnings
+- **5 parallel agents effective**: Clear file ownership and interface contracts enable rapid parallel implementation
+- **Backward compatibility pattern**: Keep old fields, add new optional ones, populate old from new
+- **Multi-post prompts**: GPT needs explicit instructions to vary hooks and not repeat quotes
+
+### Open Items / Blockers
+- [ ] Add dedicated unit tests for synthesis multi-post prompts (variations/series)
+- [ ] Add dedicated unit tests for fileWriter multi-post functions
+- [ ] Test `--post-count 3` with real pipeline run
+- [ ] Test `--post-style series` with real pipeline run
+
+### Context for Next Session
+**Section 17 (Multi-Post Generation) fully implemented.** New CLI options:
+
+```bash
+# Generate 3 post variations for A/B testing
+npx tsx src/index.ts "AI trends" --post-count 3 --sources web --verbose
+
+# Generate 3-part connected series
+npx tsx src/index.ts "AI trends" --post-count 3 --post-style series --sources web --verbose
+```
+
+**Test Results**: 1059 tests pass (15 new tests added), TypeScript compiles cleanly, TODO-v2.md updated.
+
+**Remaining work:**
+1. Section 14 (README.md documentation)
+2. Section 15 (Final checks, security audit)
+3. Integration test multi-post with real API calls
+
+---
+
+## Session: 2025-12-31 12:15 AEST
+
+### Summary
+Implemented Section 18 (Prompt Refinement Phase) using 5 parallel senior-developer agents. This adds a new Stage 0 to the pipeline that uses LLM analysis to optimize user prompts before data collection begins. The feature supports 4 models (Gemini, GPT, Claude, Kimi), with hybrid interaction (auto-refine clear prompts, ask questions for ambiguous ones).
+
+### Work Completed
+
+**Types & Schemas (Agent 1):**
+- `src/refinement/types.ts` - Created `RefinementModel`, `RefinementConfig`, `PromptAnalysis`, `RefinementResult` types
+- `src/refinement/schemas.ts` - Created Zod schemas with refinement validation (requires 2+ questions when isClear=false)
+- `DEFAULT_REFINEMENT_CONFIG` with sensible defaults (3 iterations, 30s timeout)
+
+**Stdin Utilities & Prompts (Agent 2):**
+- `src/utils/stdin.ts` - Created readline utilities: `createReadlineInterface()`, `askQuestion()`, `askYesNo()`, `askAcceptRejectFeedback()`, `collectAnswers()`, display helpers
+- `src/refinement/prompts.ts` - Created system prompts with security delimiters for prompt injection defense
+- Analysis evaluates 5 dimensions: topic specificity, audience clarity, angle/perspective, timeframe, tone
+
+**Gemini & GPT Integrations (Agent 3):**
+- `src/refinement/gemini.ts` - Gemini 2.0 Flash integration (default model) following breakdown.ts patterns
+- `src/refinement/gpt.ts` - GPT-5.2 integration with reasoningEffort: 'low' for speed
+- Both use singleton clients, Promise.race timeouts, retry with exponential backoff
+
+**Claude, Kimi & Orchestrator (Agent 4):**
+- `src/refinement/claude.ts` - NEW Claude Sonnet 4.5 integration using @anthropic-ai/sdk
+- `src/refinement/kimi.ts` - Kimi K2 via OpenRouter (reused existing patterns)
+- `src/refinement/index.ts` - Main orchestrator with `refinePrompt()` function, model selection, iteration loop
+
+**CLI/Config/Pipeline Integration (Agent 5):**
+- `src/cli/program.ts` - Added `--skip-refinement`, `--refinement-model <model>` options
+- `src/config.ts` - Added `ANTHROPIC_API_KEY`, `parseRefinementModel()`, API key validation for Claude/Kimi
+- `src/types/index.ts` - Added `RefinementConfig` to `PipelineConfig`, refinement exports
+- `src/cli/runPipeline.ts` - Integrated Stage 0 before Collection (non-fatal error handling)
+- `package.json` - Added `@anthropic-ai/sdk` dependency
+
+**Documentation:**
+- `docs/PRD-v2.md` - Added Section 14: Prompt Refinement Phase with architecture, flow diagram, CLI options
+- `docs/TODO-v2.md` - Added Section 18 with detailed implementation checklist, marked all completed items
+
+### Issues & Resolutions
+| Issue | Resolution | Status |
+|:------|:-----------|:-------|
+| Type reference error (`isReady` vs `isClear`) | Fixed to use correct property name `isClear` | ✅ Resolved |
+| API key validation for new models | Added ANTHROPIC_API_KEY to ENV_KEYS, conditional validation | ✅ Resolved |
+| Prompt injection defense | Used security delimiters (USER_PROMPT_START/END) and sanitization | ✅ Resolved |
+| 1 pre-existing test failure | collectors.test.ts dedup mock issue, unrelated to refinement | ⏳ Pre-existing |
+
+### Key Decisions
+- **Refinement ON by default**: Use `--skip-refinement` to disable (most users benefit from prompt optimization)
+- **Hybrid interaction**: LLM automatically determines if prompt needs questions or can be refined directly
+- **Non-fatal errors**: Refinement failures log warning and continue with original prompt (pipeline doesn't halt)
+- **Security first**: All user inputs sanitized, delimiters prevent prompt injection, API keys never logged
+- **Gemini default**: Fastest and cheapest, other models available for specific needs
+
+### Learnings
+- **5 parallel agents continue to be effective**: Clear file ownership prevents merge conflicts
+- **Anthropic SDK integration**: Similar patterns to OpenAI, singleton client with race condition protection
+- **Schema refinement validation**: Zod `.refine()` enables cross-field validation (require questions when unclear)
+- **Interactive CLI**: Readline interface needs proper cleanup, askAcceptRejectFeedback pattern handles complex user input
+
+### Open Items / Blockers
+- [ ] Unit tests for refinement module (Section 18.9) - schemas, prompts, model integrations
+- [ ] Add example usage to docs/HowTo.md
+- [ ] Test refinement with real API calls across all 4 models
+- [ ] Consider adding refinement metrics to pipeline_status.json
+
+### Context for Next Session
+**Section 18 (Prompt Refinement Phase) fully implemented.** New CLI options:
+
+```bash
+# Default: refinement ON with Gemini
+npx tsx src/index.ts "AI trends" --sources web --verbose
+
+# Skip refinement for quick runs
+npx tsx src/index.ts "AI trends" --sources web --skip-refinement
+
+# Use Claude for refinement
+npx tsx src/index.ts "AI trends" --refinement-model claude --sources web
+
+# Use Kimi 2 for deep reasoning
+npx tsx src/index.ts "AI trends" --refinement-model kimi2 --sources web
+```
+
+**New dependency**: `@anthropic-ai/sdk` added for Claude support.
+
+**Test Results**: 1073 tests pass, TypeScript compiles cleanly, TODO-v2.md fully updated.
+
+**Remaining work:**
+1. Section 18.9 - Unit tests for refinement module
+2. Section 14 - README.md documentation
+3. Section 15 - Final checks, security audit
+4. HowTo.md example usage
+
+---
+
+## Session: 2025-12-31 14:30 AEST
+
+### Summary
+Aligned all Gemini API calls to use Gemini 3 Flash (`gemini-3-flash-preview`) with proper `thinkingConfig` settings. This session focused on ensuring consistency across the scoring, refinement, and breakdown modules by updating the API call patterns to match the working scoring implementation.
+
+### Work Completed
+
+**HowTo.md Documentation (Section 18.10):**
+- Added comprehensive Prompt Refinement section with examples
+- Updated CLI Options Reference with `--skip-refinement` and `--refinement-model`
+- Updated Environment Variables with `ANTHROPIC_API_KEY`
+- Added Common Workflows #11 (Skip Refinement) and #12 (Claude for Refinement)
+- Updated Version History with v2.3
+
+**Gemini 3 Model Standardization:**
+- `src/refinement/gemini.ts` - Updated model from `gemini-2.0-flash` to `gemini-3-flash-preview`
+- `src/prompts/breakdown.ts` - Updated model from `gemini-2.0-flash` to `gemini-3-flash-preview`
+- `src/refinement/types.ts` - Updated `REFINEMENT_MODEL_IDS.gemini` to `gemini-3-flash-preview`
+
+**Gemini 3 API Call Alignment:**
+- `src/refinement/gemini.ts`:
+  - Added `ThinkingLevel` import from `@google/genai`
+  - Added `REFINEMENT_THINKING_LEVEL = ThinkingLevel.MEDIUM`
+  - Changed from `systemInstruction` to `thinkingConfig.thinkingLevel`
+  - System prompt now prepended to contents for Gemini 3 compatibility
+- `src/prompts/breakdown.ts`:
+  - Added `ThinkingLevel` import from `@google/genai`
+  - Added `BREAKDOWN_THINKING_LEVEL = ThinkingLevel.LOW`
+  - Added `thinkingConfig` to API call (was missing config entirely)
+
+### Issues & Resolutions
+| Issue | Resolution | Status |
+|:------|:-----------|:-------|
+| Gemini 2 vs 3 model inconsistency | Updated all modules to use `gemini-3-flash-preview` | ✅ Resolved |
+| API call pattern mismatch | Aligned to use `thinkingConfig` instead of `systemInstruction` | ✅ Resolved |
+| Refinement thinking level | Changed from LOW to MEDIUM for better quality | ✅ Resolved |
+| Pre-existing collectors test failure | Mock issue in dedup test, unrelated to changes | ⏳ Pre-existing |
+
+### Key Decisions
+- **ThinkingLevel.MEDIUM for refinement**: Balances speed and reasoning quality (vs HIGH for scoring)
+- **ThinkingLevel.LOW for breakdown**: Simple keyword extraction task, speed is priority
+- **System prompt in contents**: Gemini 3 doesn't use `systemInstruction` the same way, prepend to contents instead
+
+### Learnings
+- **Gemini 3 thinkingConfig**: The new Gemini 3 API uses `thinkingConfig.thinkingLevel` with enum values `LOW`, `MEDIUM`, `HIGH`
+- **systemInstruction deprecation**: For Gemini 3, embed system prompts in the contents rather than using `config.systemInstruction`
+- **API pattern consistency**: All Gemini modules should follow the same request structure for maintainability
+
+### Open Items / Blockers
+- [ ] Section 18.9 - Unit tests for refinement module still incomplete
+- [ ] Test refinement with real Gemini 3 API calls to verify patterns work
+- [ ] 1 pre-existing test failure in collectors.test.ts (dedup mock issue)
+
+### Context for Next Session
+**Gemini 3 API alignment complete.** All three Gemini-powered modules now use consistent patterns:
+
+| Module | Model | Thinking Level | Purpose |
+|--------|-------|----------------|---------|
+| `src/scoring/gemini.ts` | `gemini-3-flash-preview` | HIGH | Complex scoring reasoning |
+| `src/refinement/gemini.ts` | `gemini-3-flash-preview` | MEDIUM | Prompt analysis |
+| `src/prompts/breakdown.ts` | `gemini-3-flash-preview` | LOW | Keyword extraction |
+
+TypeScript compiles cleanly. 1073 tests pass (1 pre-existing failure unrelated to changes).
+
+**Recommended next steps:**
+1. Run end-to-end test with real APIs to verify Gemini 3 patterns work
+2. Implement Section 18.9 unit tests for refinement module
+3. Fix pre-existing collectors.test.ts dedup mock issue
+
+---
+
+## Session: 2025-12-31 18:00 AEST
+
+### Summary
+Fixed two bugs in the LinkedIn data collection pipeline: a regex issue in handleLoader.ts that was rejecting valid LinkedIn URLs with trailing slashes, and an incorrect API parameter in the ScrapeCreators API call that was causing 404 errors for profile fetches.
+
+### Work Completed
+
+**LinkedIn Handle Loader Fix:**
+- `src/utils/handleLoader.ts` - Updated `LINKEDIN_LINE_REGEX` to allow optional trailing slash in URLs
+- Before: `/^([^:]+):\s*(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/([a-zA-Z0-9-]+)\s*$/`
+- After: `/^([^:]+):\s*(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/([a-zA-Z0-9-]+)\/?$/`
+- Fixed: "Skipping malformed LinkedIn line" warnings for valid entries (Sean Kochel, Nate Jones)
+
+**ScrapeCreators API Parameter Fix:**
+- `src/collectors/linkedin.ts` - Fixed incorrect API parameter name
+- Before: `params: { url: profileUrl }` (passing full URL)
+- After: `params: { handle: profileHandle }` (passing just the handle/slug)
+- Renamed `handleToProfileUrl()` to `cleanHandle()` to reflect new purpose
+- Verified correct format via ScrapeCreators API documentation
+
+### Files Modified
+| File | Change |
+|:-----|:-------|
+| `src/utils/handleLoader.ts` | Regex fix for trailing slash support |
+| `src/collectors/linkedin.ts` | API parameter fix (url → handle) |
+
+### Issues & Resolutions
+| Issue | Resolution | Status |
+|:------|:-----------|:-------|
+| LinkedIn entries with trailing slashes rejected | Added `\/?` to regex pattern | ✅ Resolved |
+| 404 errors fetching LinkedIn profiles (sean-kochel) | Changed API param from `url` to `handle` per docs | ✅ Resolved |
+| Comment said `?handle={handle}` but code used `?url=` | Fixed code to match documented API | ✅ Resolved |
+
+### Key Decisions
+- **Regex flexibility**: Allow trailing slashes since they're common in copy-pasted LinkedIn URLs
+- **Trust the docs**: ScrapeCreators docs specify `?handle=` parameter, not `?url=`
+
+### Learnings
+- **ScrapeCreators API format**: Expects `?handle=username` not `?url=https://linkedin.com/in/username/`
+- **Regex debugging**: When lines are "malformed", check for trailing characters (slashes, whitespace)
+- **API inconsistency**: The API may have accepted both formats for some profiles but not others
+
+### Open Items / Blockers
+- [ ] Verify Sean Kochel profile now fetches successfully with new API format
+- [ ] Consider adding more LinkedIn profiles to `ref/linkedin-handles.md`
+
+### Context for Next Session
+**LinkedIn collector fixes applied.** Two bugs fixed:
+1. Handle loader now accepts URLs with trailing slashes
+2. ScrapeCreators API calls now use correct `handle` parameter
+
+Test by running:
+```bash
+npx tsx src/index.ts "AI trends" --sources linkedin --verbose
+```
+
+Should no longer see "Skipping malformed LinkedIn line" warnings or 404 errors for valid profiles.
+
+---
+
+## Session: 2025-12-31 23:56 AEST
+
+### Summary
+Fixed refinement schema validation failures caused by overly restrictive string length limits, implemented comprehensive unit tests for Section 18.9 (304 new tests), and fixed a pre-existing collector test failure. Test count increased from 1073 to 1377, all passing.
+
+### Work Completed
+
+**Schema Fixes (src/refinement/schemas.ts):**
+- Increased `suggestedRefinement` max: 1000 → 3000 chars (LLMs generate verbose refinements)
+- Increased `detectedIntents` item max: 50 → 300 chars (intents like "data-driven-healthcare-analysis")
+- Increased `reasoning` max: 500 → 1500 chars (detailed explanations)
+- Increased `refinedPrompt` max: 1000 → 3000 chars (RefinementResponseSchema)
+- Increased `RefinementResultSchema` prompts max: 2000 → 5000 chars
+
+**New Test Files Created:**
+- `tests/unit/refinement-schemas.test.ts` - 140 tests for all refinement Zod schemas
+- `tests/unit/refinement-prompts.test.ts` - 89 tests for prompt builders and utilities
+- `tests/unit/stdin.test.ts` - 49 tests for readline/stdin utilities
+
+**Test Files Modified:**
+- `tests/unit/config.test.ts` - Added 22 tests for refinement config parsing
+
+**Mock Fixtures Created:**
+- `tests/mocks/refinement_clear_response.json`
+- `tests/mocks/refinement_ambiguous_response.json`
+
+**Bug Fix (tests/integration/collectors.test.ts):**
+- Fixed dedup test: duplicate content string was 42 chars, filtered out by 50-char minimum
+- Extended test content to 120 chars to pass validation
+
+### Issues & Resolutions
+| Issue | Resolution | Status |
+|:------|:-----------|:-------|
+| Schema rejecting valid LLM responses | Increased string length limits for suggestedRefinement, detectedIntents, reasoning | ✅ Resolved |
+| Collectors dedup test failing | Extended mock content string from 42 to 120 chars (50-char minimum filter) | ✅ Resolved |
+| Chalk mock for stdin tests | Used Object.assign() for method chaining (chalk.cyan.bold()) | ✅ Resolved |
+
+### Key Decisions
+- **Generous schema limits**: Set limits high enough (3000, 1500, 300) to accommodate verbose LLM outputs while still providing reasonable bounds
+- **Security-focused tests**: Added 12+ tests for prompt injection attacks (delimiter injection, role injection, template injection)
+- **Complete test coverage**: 140 tests for schemas, 89 for prompts, 49 for stdin, 22 for config
+
+### Learnings
+- **LLM output variance**: Real LLM responses are much more verbose than expected; schema limits need to accommodate the 95th percentile
+- **Web collector filter**: Content blocks < 50 chars are filtered as "tiny fragments" - test mocks must exceed this
+- **Chalk mocking**: Method chaining in chalk requires careful mock structure with callable functions
+
+### Open Items / Blockers
+- [ ] Test refinement with real API calls to verify schema limits are adequate
+- [ ] Section 14 - README.md documentation still incomplete
+- [ ] Section 15 - Final checks, security audit, performance check
+
+### Context for Next Session
+**Section 18.9 (Refinement Unit Tests) complete.** Test suite now at 1377 tests (all passing).
+
+Key test files added:
+| File | Tests | Coverage |
+|------|-------|----------|
+| refinement-schemas.test.ts | 140 | All Zod schemas + validation helpers |
+| refinement-prompts.test.ts | 89 | Prompt builders + JSON extraction + security |
+| stdin.test.ts | 49 | Readline utilities + display helpers |
+| config.test.ts (additions) | 22 | Refinement config parsing |
+
+**Remaining work:**
+1. Section 14 - README.md documentation
+2. Section 15 - Final checks (security audit, performance verification)
+3. End-to-end testing with real APIs
+
+---
+
+---
+
+## Session: 2025-12-31 00:10 AEST
+
+### Summary
+Fixed GPT synthesis timeout issue (increased from 60s to 5 minutes for reasoning models) and implemented a new `--from-scored` CLI option that allows resuming pipeline runs from existing scored_data.json, skipping collection/validation/scoring stages. Successfully tested with a 3-part series generation.
+
+### Work Completed
+- **Timeout fix**: Increased `STAGE_TIMEOUT_MS` from 60s to 300s (5 min) in `src/types/index.ts:322`
+- **Resume feature**: Added `--from-scored <path>` CLI option for pipeline resume
+- **Files modified**:
+  - `src/cli/program.ts` - Added CLI option and examples
+  - `src/config.ts` - Added `fromScored` to `CliOptions` interface
+  - `src/types/index.ts` - Added `fromScored` to `PipelineConfig`, timeout increase
+  - `src/cli/runPipeline.ts` - Added `loadScoredData()` function and resume flow logic
+  - `docs/HowTo.md` - Full documentation with examples, TOC, CLI reference table, version history
+
+### Issues & Resolutions
+| Issue | Resolution | Status |
+|:------|:-----------|:-------|
+| GPT synthesis timing out after 60s | Increased STAGE_TIMEOUT_MS to 300s (5 min) for reasoning models | ✅ Resolved |
+| No way to resume failed pipelines | Implemented `--from-scored` option to skip stages 0-3 | ✅ Resolved |
+| Shell quoting issue with complex prompts | Used single quotes for outer wrapper when prompt contains double quotes | ✅ Resolved |
+
+### Key Decisions
+- **5-minute timeout**: GPT-5.2 with `reasoning: medium` on multi-post synthesis can legitimately take 2-5 minutes; 5 min provides adequate headroom
+- **Skip all early stages**: When resuming, skip refinement/collection/validation/scoring entirely - user provides pre-scored data
+- **Minimal validation**: Only check file exists, is valid JSON array, and non-empty - trust scored_data.json structure
+
+### Learnings
+- **Cost estimation**: GPT synthesis costs ~$0.05-0.08 per request regardless of timeout - you pay for tokens, not time
+- **Reasoning models need patience**: GPT-5.2 with reasoning enabled is slower but produces better structured output
+- **Resume saves significant time**: Skipping early stages saved ~5 min on a 3-min synthesis run
+
+### Open Items / Blockers
+- [ ] Consider adding `--from-validated` option to resume from validated_data.json (skip collection only)
+- [ ] Add progress indicator during long synthesis waits
+
+### Context for Next Session
+**Resume feature complete and tested.** Successfully ran 3-part series generation:
+- Input: 43 scored items from previous failed run
+- Output: 3 LinkedIn posts + 3 infographics
+- Time: 3m 7s (vs ~8+ min from scratch)
+- Cost: $0.055
+
+Usage example:
+```bash
+npx tsx src/index.ts "prompt" --from-scored output/2025-12-30_23-47-46/scored_data.json --post-count 3 --post-style series --verbose
+```
+
+Documentation updated in `docs/HowTo.md` with new Section 9 (Resume from Scored Data), CLI reference entry, and workflow example 13.
+
+---

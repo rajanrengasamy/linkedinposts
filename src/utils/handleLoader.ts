@@ -1,10 +1,10 @@
 /**
- * X/Twitter Handle Loader
+ * Handle Loader
  *
- * Parses X handles from a markdown file for the Twitter collector.
- * Supports category extraction and topic-based selection.
+ * Parses social media handles from markdown files for collectors.
  *
- * File format: @handle (Display Name, description/tags)
+ * X/Twitter: @handle (Display Name, description/tags)
+ * LinkedIn: Display Name: linkedin.com/in/profile-slug
  */
 
 import { readFileSync, existsSync } from 'node:fs';
@@ -29,12 +29,25 @@ export interface XHandle {
   categories: string[];
 }
 
+/**
+ * Parsed LinkedIn profile with metadata
+ */
+export interface LinkedInProfile {
+  /** Profile slug/handle (e.g., "sean-kochel") */
+  slug: string;
+  /** Display name (e.g., "Sean Kochel") */
+  displayName: string;
+}
+
 // ============================================
 // Constants
 // ============================================
 
 /** Default path to X handles file */
 export const DEFAULT_X_HANDLES_PATH = 'ref/x-handles.md';
+
+/** Default path to LinkedIn profiles file */
+export const DEFAULT_LINKEDIN_PROFILES_PATH = 'ref/linkedin-handles.md';
 
 /**
  * Category extraction rules
@@ -49,18 +62,28 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
 };
 
 /**
- * Regex pattern to parse handle lines
+ * Regex pattern to parse X handle lines
  * Matches: @handle (Display Name, description)
  * Groups: 1=handle, 2=displayName, 3=description
  */
 const HANDLE_LINE_REGEX = /^@(\w+)\s*\(([^,]+),\s*(.+)\)$/;
 
+/**
+ * Regex pattern to parse LinkedIn profile lines
+ * Matches: Display Name: linkedin.com/in/profile-slug
+ * Groups: 1=displayName, 2=slug
+ */
+const LINKEDIN_LINE_REGEX = /^([^:]+):\s*(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/([a-zA-Z0-9-]+)\/?$/;
+
 // ============================================
 // Cache
 // ============================================
 
-/** Cache for loaded handles to avoid re-reading file */
+/** Cache for loaded X handles to avoid re-reading file */
 const handleCache = new Map<string, XHandle[]>();
+
+/** Cache for loaded LinkedIn profiles to avoid re-reading file */
+const linkedinCache = new Map<string, LinkedInProfile[]>();
 
 // ============================================
 // Category Extraction
@@ -317,4 +340,123 @@ export function getAllCategories(handles: XHandle[]): string[] {
     }
   }
   return Array.from(categories).sort();
+}
+
+// ============================================
+// LinkedIn Profile Loading
+// ============================================
+
+/**
+ * Parse a single line from the LinkedIn profiles file.
+ *
+ * @param line - Line to parse
+ * @param lineNum - Line number for error reporting
+ * @returns Parsed LinkedInProfile or null if line is invalid/comment/header
+ */
+function parseLinkedInLine(line: string, lineNum: number): LinkedInProfile | null {
+  const trimmed = line.trim();
+
+  // Skip empty lines, comments, and section headers
+  if (!trimmed || trimmed.startsWith('#')) {
+    return null;
+  }
+
+  const match = trimmed.match(LINKEDIN_LINE_REGEX);
+
+  if (!match) {
+    // Only warn for lines that look like they should be profile entries
+    // (contain "linkedin.com" but don't match the pattern)
+    if (trimmed.toLowerCase().includes('linkedin.com')) {
+      logWarning(`Skipping malformed LinkedIn line ${lineNum}: "${trimmed.substring(0, 50)}..."`);
+    }
+    return null;
+  }
+
+  const [, displayName, slug] = match;
+
+  return {
+    slug: slug.trim(),
+    displayName: displayName.trim(),
+  };
+}
+
+/**
+ * Load LinkedIn profiles from a markdown file.
+ *
+ * Uses synchronous file read for simplicity (profile files are small).
+ * Results are cached to avoid re-reading the file on repeated calls.
+ *
+ * @param filepath - Path to the profiles file (default: ref/linkedin-handles.md)
+ * @returns Array of parsed LinkedInProfile objects, empty if file doesn't exist
+ */
+export function loadLinkedInProfiles(filepath?: string): LinkedInProfile[] {
+  const resolvedPath = resolve(process.cwd(), filepath ?? DEFAULT_LINKEDIN_PROFILES_PATH);
+
+  // Check cache first
+  if (linkedinCache.has(resolvedPath)) {
+    logVerbose(`Using cached LinkedIn profiles from: ${resolvedPath}`);
+    return linkedinCache.get(resolvedPath)!;
+  }
+
+  // Check if file exists
+  if (!existsSync(resolvedPath)) {
+    logWarning(`LinkedIn profiles file not found: ${resolvedPath}`);
+    return [];
+  }
+
+  // Read and parse file
+  const content = readFileSync(resolvedPath, 'utf-8');
+  const lines = content.split('\n');
+  const profiles: LinkedInProfile[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const profile = parseLinkedInLine(lines[i], i + 1);
+    if (profile) {
+      profiles.push(profile);
+    }
+  }
+
+  // Cache results
+  linkedinCache.set(resolvedPath, profiles);
+
+  logVerbose(`Loaded ${profiles.length} LinkedIn profiles from: ${resolvedPath}`);
+
+  return profiles;
+}
+
+/**
+ * Clear the LinkedIn profiles cache.
+ * Useful for testing or when the file has been modified.
+ */
+export function clearLinkedInCache(): void {
+  linkedinCache.clear();
+  logVerbose('LinkedIn profiles cache cleared');
+}
+
+/**
+ * Select LinkedIn profiles for a query.
+ *
+ * Unlike X handles which have descriptions for keyword matching,
+ * LinkedIn profiles are selected based on simple count limiting.
+ * All profiles are considered equally relevant.
+ *
+ * @param profiles - Array of profiles to select from
+ * @param maxProfiles - Maximum number of profiles to return (default: 10)
+ * @returns Array of profiles limited to maxProfiles
+ */
+export function selectLinkedInProfiles(
+  profiles: LinkedInProfile[],
+  maxProfiles: number = 10
+): LinkedInProfile[] {
+  if (profiles.length === 0) {
+    return [];
+  }
+
+  const result = profiles.slice(0, maxProfiles);
+
+  logVerbose(
+    `Selected ${result.length} LinkedIn profiles: ${result.map((p) => p.slug).join(', ')}`
+  );
+
+  return result;
 }
