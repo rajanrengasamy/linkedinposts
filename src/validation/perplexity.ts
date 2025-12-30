@@ -388,14 +388,94 @@ ${quotesSection}
 The user was searching for: "${sanitizedPrompt}"
 <<<CONTEXT_END>>>
 
-## Verification Tasks
+## Verification Tasks (Chain-of-Thought Required)
 
-1. **Cross-check the content** against web sources to verify accuracy
-2. **Verify author attribution** - confirm this content is actually by/about the claimed author
-3. **Verify any quotes** - find original sources for quoted text
-4. **Find corroborating sources** - identify independent sources that confirm the claims
-5. **Determine if primary source** - check if this is from the author's own website, official publication, or verified social media
-6. **Verify publication date** - identify when this content was originally published
+For each task below, think step-by-step before reaching a conclusion. Document your reasoning in the notes array.
+
+### Task 1: Cross-check Content
+Step 1a: Search for the exact content or key phrases in web sources
+Step 1b: Compare found content with the provided content for accuracy
+Step 1c: Note any discrepancies or confirmations found
+
+### Task 2: Verify Author Attribution
+Step 2a: Determine the relationship type - is this content:
+  - AUTHORED_BY: Written/said directly by the claimed author
+  - QUOTING: The author is quoting someone else
+  - ABOUT: Content written about the author by a third party
+Step 2b: Search for the author's verified profiles/publications
+Step 2c: Cross-reference the content with known author works
+Step 2d: Document the attribution type in notes (e.g., "Attribution: AUTHORED_BY - confirmed via official Twitter account")
+
+### Task 3: Verify Quotes (Fuzzy Matching Allowed)
+Step 3a: For each quote, search for the exact text first
+Step 3b: If exact match not found, search for semantic equivalents (paraphrases with >80% meaning similarity)
+Step 3c: If only a paraphrase is found, mark verified=true but add note: "Paraphrase match - original wording differs slightly"
+Step 3d: A quote can be verified if the core meaning is preserved even if exact wording varies
+
+### Task 4: Find Corroborating Sources
+Step 4a: Search for independent sources confirming the claims
+Step 4b: Evaluate source independence (same organization = not independent)
+Step 4c: Prefer authoritative sources (official sites, reputable publications, verified accounts)
+
+### Task 5: Determine Primary Source Status
+Step 5a: Check if URL is author's official website/blog
+Step 5b: Check if URL is author's verified social media
+Step 5c: Check if URL is author's official publication/book
+Step 5d: Only mark isPrimarySource=true if content originates FROM the author's own platform
+
+### Task 6: Verify Publication Date
+Step 6a: Look for explicit publication timestamps on the source
+Step 6b: Cross-reference with archive services if needed
+Step 6c: Use ISO 8601 format for dates (see Date Format Guide below)
+
+## Confidence Calibration Scale
+
+Use this specific scale for the confidence field:
+
+- **0.0-0.2**: Unable to find ANY corroborating sources; content may be fabricated or too obscure
+- **0.2-0.4**: Found partial matches or similar content, but not exact; attribution uncertain
+- **0.4-0.6**: Found ONE reliable source confirming the content; basic verification achieved
+- **0.6-0.8**: Found MULTIPLE independent sources confirming the content; good confidence
+- **0.8-0.95**: PRIMARY source found with direct confirmation; high confidence
+- **0.95-1.0**: Primary source with EXACT match of content; near-certain verification
+
+Example calibration:
+- Quote found on author's verified Twitter AND in a news article = 0.85
+- Quote found only on aggregator sites with no primary source = 0.35
+- Quote exactly matches author's published book = 0.98
+
+## Publication Date Format Guide (ISO 8601)
+
+When verifying publication dates, use these formats:
+
+- **Full datetime**: "2024-03-15T14:30:00Z" (preferred when exact time is known)
+- **Date only**: "2024-03-15T00:00:00Z" (use midnight UTC when only date is known)
+- **Year-month only**: "2024-03-01T00:00:00Z" (use first of month when only month/year known)
+- **Year only**: "2024-01-01T00:00:00Z" (use Jan 1 when only year is known)
+
+Add a note explaining precision, e.g., "Publication date precision: month-level only"
+
+## Handling Contradictory Sources
+
+When sources disagree on facts:
+
+1. **Note the contradiction** in the notes array with specifics
+2. **Prefer primary sources** over secondary sources
+3. **Prefer recent sources** over older sources (unless historical accuracy matters)
+4. **Lower confidence score** to reflect uncertainty (typically 0.3-0.5 range)
+5. **Document both versions** if the contradiction is significant
+6. **Do NOT mark as verified** if primary facts are in dispute
+
+Example note: "Contradiction found: Source A (author's blog) says 2019, Source B (news article) says 2020. Using primary source date."
+
+## Source Requirements
+
+Return between 1-5 sources maximum in sourcesFound:
+
+- **Deduplicate**: Do not include multiple URLs from the same domain for the same claim
+- **Prefer authoritative sources**: Official sites > Major publications > Blogs > Social aggregators
+- **Prefer primary sources**: Author's own platforms > Third-party reporting
+- **Include diverse sources**: If possible, include sources from different organizations
 
 ## Verification Level Definitions
 
@@ -419,18 +499,22 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no expla
     {
       "quote": "the quote text",
       "verified": boolean,
-      "sourceUrl": "url where found" (optional if not verified)
+      "sourceUrl": "url where found" (required if verified=true, omit if verified=false)
     }
   ],
   "publishedAtVerified": "ISO 8601 datetime string" (optional, include if publication date was verified)
 }
 
-Important:
-- Return ONLY the JSON object, no other text
-- All URLs must be valid HTTP or HTTPS URLs (no javascript:, file:, or data: URLs)
-- Include all quotes found in the content in quotesVerified array
-- Set isPrimarySource to true only if the content originates from the author's own platform
-- Confidence should reflect your certainty in the verification (0.0 = no confidence, 1.0 = fully confident)`;
+## Critical Requirements
+
+1. **Return ONLY the JSON object** - no markdown, no explanation text
+2. **All URLs must be HTTP(S)** - no javascript:, file:, or data: URLs
+3. **quotesVerified must include ALL quotes** - return an entry for EVERY quote listed in "Quotes to verify" above, even if unverified
+4. **sourceUrl is REQUIRED when verified=true** - a verified quote MUST have a source URL
+5. **isPrimarySource=true requires evidence** - only set if content originates from author's own platform
+6. **Confidence must follow calibration scale** - use the specific ranges defined above
+7. **sourcesFound: 1-5 URLs maximum** - deduplicated, prefer authoritative/primary sources
+8. **Document reasoning in notes** - include key findings from each verification task`;
 }
 
 /**

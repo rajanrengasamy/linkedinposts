@@ -365,7 +365,7 @@ describe('buildValidationPrompt', () => {
     const item = createTestRawItem();
     const prompt = buildValidationPrompt(item, 'test prompt');
 
-    expect(prompt).toContain('Verify any quotes');
+    expect(prompt).toContain('Task 3: Verify Quotes');
     expect(prompt).toContain('quotesVerified');
   });
 
@@ -373,8 +373,8 @@ describe('buildValidationPrompt', () => {
     const item = createTestRawItem();
     const prompt = buildValidationPrompt(item, 'test prompt');
 
-    expect(prompt).toContain('Find corroborating sources');
-    expect(prompt).toContain('Cross-check the content');
+    expect(prompt).toContain('Task 4: Find Corroborating Sources');
+    expect(prompt).toContain('Task 1: Cross-check Content');
   });
 
   it('includes author information when available', () => {
@@ -401,7 +401,7 @@ describe('buildValidationPrompt', () => {
     const item = createTestRawItem();
     const prompt = buildValidationPrompt(item, 'test prompt');
 
-    expect(prompt).toContain('Verify publication date');
+    expect(prompt).toContain('Task 6: Verify Publication Date');
     expect(prompt).toContain('publishedAtVerified');
   });
 });

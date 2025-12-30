@@ -232,28 +232,35 @@ export function getImageClient(): GoogleGenAI {
  */
 const STYLE_INSTRUCTIONS: Record<InfographicStyle, string> = {
   minimal: `Style Guidelines (Minimal):
+- WHITESPACE: Minimum 40% of canvas should be empty/negative space
 - Use generous whitespace and clean layouts
-- Simple, elegant icons where appropriate
+- Simple, elegant icons where appropriate (max 1-2 icons)
 - Limited color palette (2-3 colors max)
 - Focus on typography and hierarchy
 - Avoid clutter - less is more
-- Sans-serif fonts for modern feel`,
+- Sans-serif fonts for modern feel
+- Content should breathe - no cramped sections`,
 
   'data-heavy': `Style Guidelines (Data-Heavy):
+- ONE main chart or visualization only (not multiple competing charts)
+- Maximum 3-4 data points displayed - focus on the most impactful
 - Include charts, graphs, or statistical callouts
 - Use number visualizations prominently
 - Infographic-style data representations
-- Clear data labels and annotations
+- Clear data labels and annotations (large enough to read)
 - Comparison visuals where relevant
-- Percentage bars, pie charts, or trend lines`,
+- Percentage bars, pie charts, or trend lines
+- Numbers should be the visual hero - make them large and bold`,
 
   'quote-focused': `Style Guidelines (Quote-Focused):
+- QUOTE SPACE: Allocate 60% or more of canvas to the quote text
 - Large, prominent quote text as centerpiece
 - Elegant quotation marks or decorative elements
-- Clear author attribution styling
-- Typography-driven design
-- Complementary imagery that supports the quote
-- Inspirational or professional tone`,
+- Clear author attribution styling (smaller but visible)
+- Typography-driven design - the quote IS the visual
+- Complementary imagery that supports the quote (subtle, not competing)
+- Inspirational or professional tone
+- Background should recede, quote should dominate`,
 };
 
 // ============================================
@@ -335,6 +342,7 @@ ${keyPointsSection}
 ${styleInstructions}
 
 Color Scheme: ${colorScheme}
+Color Application: Use 60% primary color, 30% secondary color, 10% neutral/accent. Primary dominates background or main elements, secondary for supporting elements, neutral for text and fine details.
 
 Requirements:
 - Clean, modern professional design
@@ -344,6 +352,39 @@ Requirements:
 - Suitable for LinkedIn sharing
 - Professional quality output
 - Resolution: ${imageSize}
+
+Composition Guidelines:
+- Title must be in the TOP 20-30% of the image
+- Maintain 5% margins on all edges (safe zone)
+- Use rule of thirds for element placement
+- Visual flow: top-to-bottom, left-to-right reading order
+- Design must work as a square crop (center-weighted)
+
+Typography Specification:
+- Title: BOLD weight, HIGH CONTRAST against background, minimum 5% of image height
+- All text must have 4.5:1 contrast ratio minimum (WCAG AA)
+- Use maximum 3 font sizes total (title, body, caption)
+- Sans-serif fonts only for clarity
+- No decorative or script fonts for body text
+
+Mobile-First Design:
+- 70%+ of LinkedIn views are on mobile devices
+- Text must be readable at thumbnail size (100px preview)
+- Key message visible without zooming
+- No fine details that disappear at small sizes
+- Test: Would this be legible on a phone screen?
+
+AVOID (Negative Prompts):
+- NO stock imagery or generic business photos
+- NO busy or cluttered backgrounds
+- NO small or illegible text
+- NO gradients overlapping text areas
+- NO more than 5 visual elements total
+- NO clip art or cartoon graphics
+- NO generic corporate imagery (handshakes, globes, arrows)
+- NO logos or brand marks
+- NO extra text beyond title and key points
+- NO decorative borders that compete with content
 
 Important:
 - Text must be crisp and readable

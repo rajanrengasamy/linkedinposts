@@ -296,8 +296,8 @@ const ITEM_END_DELIMITER = '<<<ITEM_END>>>';
 const PROMPT_START_DELIMITER = '<<<USER_PROMPT_START>>>';
 const PROMPT_END_DELIMITER = '<<<USER_PROMPT_END>>>';
 
-/** Approximate fixed template size for prompt length estimation */
-const PROMPT_OVERHEAD = 800;
+/** Approximate fixed template size for prompt length estimation (updated for enhanced prompt) */
+const PROMPT_OVERHEAD = 2800;
 
 /** Per-item overhead for delimiters and metadata in prompt */
 const ITEM_OVERHEAD = 200;
@@ -442,11 +442,60 @@ ${PROMPT_START_DELIMITER}
 ${sanitizedUserPrompt}
 ${PROMPT_END_DELIMITER}
 
-For each item, provide scores from 0-100:
-- relevance: How relevant to the topic
-- authenticity: Based on verification level (UNVERIFIED=low, SOURCE_CONFIRMED=medium, MULTISOURCE_CONFIRMED=high, PRIMARY_SOURCE=highest)
-- recency: Based on publication date (recent=high, older=low, unknown=medium)
-- engagementPotential: Likely to engage LinkedIn audience based on content quality and topic appeal
+SCORING DIMENSIONS (0-100 scale for each):
+
+1. RELEVANCE - How relevant to the topic
+   Rubric:
+   - 0-29: Off-topic or tangentially related at best
+   - 30-49: Related field but different focus or weak connection
+   - 50-69: Moderately relevant, addresses the topic but not directly
+   - 70-89: Strongly relevant, directly addresses the topic with clear alignment
+   - 90-100: Exceptional match - core topic, highly specific, authoritative
+
+2. AUTHENTICITY - Baseline credibility/rigor based on the content ITSELF
+   (DO NOT use the verification level - verification boosts are applied separately downstream)
+   Score based on: clarity of claims, presence of data/evidence, professional tone, absence of sensationalism.
+   Rubric:
+   - 0-29: Vague claims, no evidence, sensational/clickbait tone
+   - 30-49: Some claims but weak evidence, informal or biased tone
+   - 50-69: Reasonable claims with some support, professional tone
+   - 70-89: Clear claims with data/evidence, authoritative tone
+   - 90-100: Rigorous analysis, multiple data points, expert-level clarity
+
+3. RECENCY - Based on publication date
+   Rubric:
+   - 0-29: Over 2 years old or severely outdated information
+   - 30-49: 1-2 years old, potentially stale
+   - 50-69: 6-12 months old OR unknown date (use 50 for unknown)
+   - 70-89: Within last 6 months, current information
+   - 90-100: Within last month, breaking news or very recent
+
+4. ENGAGEMENT POTENTIAL - Estimate FUTURE potential for LinkedIn audience
+   (Do NOT simply mirror observed engagement counts - estimate potential based on content quality and topic appeal)
+   Rubric:
+   - 0-29: Dry, technical, niche audience only, no hook
+   - 30-49: Limited appeal, specialized topic, weak narrative
+   - 50-69: Moderate appeal, decent hook but limited shareability
+   - 70-89: Strong hook, broad appeal, thought-provoking or actionable
+   - 90-100: Viral potential, highly shareable, strong emotional/professional resonance
+
+NEGATIVE SIGNALS (apply score penalties):
+- Clickbait headlines or sensationalism: -10 to -20 on authenticity
+- Promotional/sales content: -15 on engagementPotential
+- Outdated info presented as current: -20 on recency
+- Vague or unsupported claims: -10 to -15 on authenticity
+- Generic content lacking specifics: -10 on relevance and engagementPotential
+
+TIE-BREAKING GUIDELINES (when items score similarly):
+- Prefer direct quotes over paraphrased content
+- Prefer specific data/numbers over general statements
+- Prefer more recent content over older
+- Prefer named sources over anonymous
+
+CALIBRATION GUIDANCE:
+- Aim for score distribution across the full range - avoid clustering at 70-80
+- Use the full 0-100 scale; reserve 90+ for truly exceptional content
+- A "typical" item should score around 50-60; be discriminating
 
 Items to score:
 ${formattedItems}
@@ -454,14 +503,14 @@ ${formattedItems}
 Return ONLY valid JSON in this exact format:
 {
   "scores": [
-    {"id": "item-id-here", "relevance": 85, "authenticity": 70, "recency": 90, "engagementPotential": 75, "reasoning": ["brief point 1", "brief point 2"]}
+    {"id": "item-id-here", "relevance": 85, "authenticity": 70, "recency": 90, "engagementPotential": 75, "reasoning": ["point 1", "point 2", "point 3"]}
   ]
 }
 
 Requirements:
 - Include an entry for EVERY item ID provided
 - All scores must be integers between 0 and 100
-- Provide 2-3 brief reasoning points per item
+- REQUIRED: Provide exactly 3 reasoning points per item (no more, no less)
 - Return ONLY the JSON object, no additional text`;
 
   return prompt;

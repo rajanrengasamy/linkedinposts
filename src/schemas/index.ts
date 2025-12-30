@@ -436,19 +436,34 @@ function buildFixJsonPrompt(
   originalPrompt?: string
 ): string {
   const contextSection = originalPrompt
-    ? `\n\nOriginal request context:\n${originalPrompt.slice(0, 500)}${originalPrompt.length > 500 ? '...' : ''}`
+    ? `
+
+<<<ORIGINAL_REQUEST_START>>>
+${originalPrompt.slice(0, 500)}${originalPrompt.length > 500 ? '...' : ''}
+<<<ORIGINAL_REQUEST_END>>>`
     : '';
 
-  return `The following JSON response has validation errors. Please fix it and return ONLY valid JSON with no additional text.
+  return `You returned JSON that failed schema validation. Fix it with MINIMAL CHANGES and return ONLY the corrected JSON.
 
-Validation errors:
+## Rules
+- Do NOT add new facts, URLs, quotes, or data that were not in the original response
+- Preserve all existing keys and values unless a change is required by the validation errors
+- If a required field is missing and cannot be inferred from the original:
+  - For author fields: use "Unknown"
+  - For arrays: use empty array []
+  - For counts/numbers: use 0
+  - For URLs: omit the field if optional, or use "" if required
+  - For strings: use "" or "Unknown" as appropriate
+- Do NOT embellish, expand, or improve the content - only fix validation errors
+- Return ONLY the corrected JSON object, no explanations, no markdown
+
+## Validation Errors
 ${validationError}
 
-Invalid JSON:
-\`\`\`json
+## Invalid JSON to Fix
+<<<INVALID_JSON_START>>>
 ${badResponse}
-\`\`\`
-${contextSection}
+<<<INVALID_JSON_END>>>${contextSection}
 
-Return the corrected JSON only, with no explanation or markdown formatting:`;
+Return the corrected JSON now:`;
 }

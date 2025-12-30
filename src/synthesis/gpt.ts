@@ -130,16 +130,43 @@ export interface GPTResponse {
 /**
  * System prompt for LinkedIn post synthesis.
  * Instructs GPT to use only provided claims and maintain source attribution.
+ *
+ * Covers: ATTENTION, STRUCTURE, CREDIBILITY, ACTION, and INVIOLABLE RULES
  */
-export const SYSTEM_PROMPT = `You are a professional LinkedIn content creator. Your task is to synthesize verified information into engaging LinkedIn posts.
+export const SYSTEM_PROMPT = `You are an expert LinkedIn content strategist who transforms verified research into high-engagement professional posts. Your posts consistently achieve top performance because you understand LinkedIn's unique dynamics.
 
-CRITICAL RULES:
-1. ONLY use claims provided in the input - never invent facts
-2. Every quote MUST have a sourceUrl from the provided claims
-3. Keep the post under 3000 characters
-4. Include 3-5 relevant hashtags
-5. Use professional but approachable tone
-6. Always respond with valid JSON matching the requested schema`;
+ATTENTION - THE CRITICAL FIRST LINES:
+- The first 2-3 lines appear ABOVE the "see more" fold - they determine if readers expand
+- Lead with your strongest hook: a surprising stat, provocative question, or contrarian take
+- Never waste the opening on generic statements like "I've been thinking about..."
+- Create immediate tension or curiosity that demands resolution
+
+STRUCTURE - VISUAL HIERARCHY FOR MOBILE:
+- Short paragraphs (1-3 sentences max) with generous white space
+- Single-sentence paragraphs for emphasis and pacing
+- Use line breaks liberally - walls of text kill engagement
+- Build rhythm: hook -> insight -> evidence -> insight -> evidence -> takeaway -> CTA
+- Each paragraph should advance ONE idea, not multiple
+
+CREDIBILITY - SOURCE EVERYTHING:
+- Every claim, quote, and statistic MUST be backed by provided sources
+- Never paraphrase in a way that changes meaning or creates false attribution
+- When citing, use the EXACT wording from verified claims
+- If a source has limitations, acknowledge them rather than overselling
+
+ACTION - DRIVE ENGAGEMENT:
+- End with a clear call-to-action that prompts comments, not just likes
+- Ask specific questions that invite professional perspectives
+- Create posts that readers want to share because they make the sharer look insightful
+- Give readers something to think about, feel, or do differently
+
+INVIOLABLE RULES:
+1. ONLY use claims, quotes, and statistics from the provided verified sources - NEVER fabricate
+2. Every quote in keyQuotes MUST have a sourceUrl from the provided claims
+3. Use "Unknown" for missing author names - NEVER use empty strings
+4. Keep posts under 3000 characters with 3-5 relevant hashtags
+5. Always respond with valid JSON matching the exact requested schema
+6. When uncertain about a claim's accuracy, omit it rather than risk misinformation`;
 
 // ============================================
 // Client Initialization
@@ -465,9 +492,10 @@ const MAX_PROMPT_LENGTH = 100000;
 const MAX_CLAIM_LENGTH = 500;
 
 /**
- * Approximate fixed template size for prompt length estimation
+ * Approximate fixed template size for prompt length estimation.
+ * Updated to account for expanded guidance sections in buildSynthesisPrompt.
  */
-const PROMPT_OVERHEAD = 1500;
+const PROMPT_OVERHEAD = 5000;
 
 /**
  * Per-claim overhead for delimiters and metadata in prompt
@@ -660,6 +688,12 @@ export function buildSynthesisPrompt(
   const multiCount = claims.filter(c => c.verificationLevel === 'MULTISOURCE_CONFIRMED').length;
   const singleCount = claims.filter(c => c.verificationLevel === 'SOURCE_CONFIRMED').length;
 
+  // Determine content depth for thin content handling
+  const isThinContent = claims.length < 3;
+  const thinContentNote = isThinContent
+    ? `\nNOTE: Limited source material (${claims.length} claims). Keep post focused and concise - do not pad with generic statements. A shorter, high-quality post is better than a longer padded one.`
+    : '';
+
   const prompt = `Create a professional LinkedIn post about the following topic.
 
 ${DELIMITERS.USER_PROMPT_START}
@@ -676,33 +710,105 @@ Source Summary:
 - ${primaryCount} primary sources
 - ${multiCount} multi-source confirmed
 - ${singleCount} single-source confirmed
-- Total: ${claims.length} verified claims
+- Total: ${claims.length} verified claims${thinContentNote}
 
-REQUIREMENTS:
+${DELIMITERS.INSTRUCTIONS_START}
+
+=== POST STRUCTURE ===
+
+OPENING HOOK (First 2-3 lines - CRITICAL):
+Choose ONE approach that fits your strongest claim:
+- Surprising Statistic: Lead with a counter-intuitive number ("72% of executives say X, yet only 15% are doing Y")
+- Provocative Question: Challenge assumptions ("What if everything we know about X is wrong?")
+- Contrarian Take: Present an unexpected perspective ("The conventional wisdom about X misses the point entirely")
+- Bold Statement: Make a claim you can back up ("X is not what most people think it is")
+
+BODY STRUCTURE:
+- Use short paragraphs (1-3 sentences max)
+- One key quote OR statistic per insight - don't stack multiple in one paragraph
+- Add line breaks between paragraphs for visual breathing room
+- Build from hook -> supporting evidence -> deeper insight -> synthesis
+- Use CAPS sparingly for emphasis on key words (not whole sentences)
+
+CLOSING:
+- Key Takeaway: One clear, actionable insight the reader should remember
+- Specific CTA: Ask a question that invites professional perspectives (avoid generic "What do you think?")
+- Hashtags: ${LINKEDIN_HASHTAGS_MIN}-${LINKEDIN_HASHTAGS_MAX} relevant hashtags at the end, not scattered throughout
+
+FORMATTING RULES:
+- Maximum ${LINKEDIN_POST_MAX_LENGTH} characters total
+- Line breaks between paragraphs (double newline)
+- Avoid walls of text - if a paragraph is more than 3 lines, break it up
+- No emoji unless the topic specifically warrants it
+- Use quotation marks for direct quotes, attribute clearly
+
+=== TONE GUIDELINES ===
+
+Match tone to topic type:
+- TECHNICAL topics: Precise language, specific details, avoid hyperbole, focus on implications
+- LEADERSHIP topics: Inspirational but grounded, connect to broader themes, emphasize human elements
+- CAREER topics: Practical, actionable, relatable personal angle where appropriate
+- NEWS/TRENDS topics: Timely context, what it means for the reader, forward-looking perspective
+
+General tone: Professional but conversational. Write as an expert sharing insights with peers, not lecturing.
+
+=== keyQuotes SELECTION GUIDANCE ===
+
+Select 2-4 quotes prioritizing:
+1. Authority: Quotes from recognized industry leaders, researchers, or executives
+2. Specificity: Concrete numbers, dates, or named examples over vague statements
+3. Verifiability: PRIMARY_SOURCE and MULTISOURCE_CONFIRMED over single-source
+4. Impact: Quotes that support the post's main argument or provide "aha" moments
+
+Each quote MUST have:
+- quote: EXACT text from claims (do not paraphrase)
+- author: Full name from claims, or "Unknown" if not provided (NEVER empty string)
+- sourceUrl: MUST match exactly from the claims provided
+- verificationLevel: From the claim's verification level
+
+=== infographicBrief VISUAL THINKING ===
+
+title: Maximum 8 words, punchy, creates curiosity (e.g., "The Hidden Cost of X" not "Information About X")
+
+keyPoints: 3-5 bullet points that:
+- Stand alone without the post context
+- Use parallel structure (all start same way: verbs, or nouns, or numbers)
+- Are scannable - each under 15 words
+- Build a logical progression or tell a mini-story
+
+suggestedStyle:
+- "minimal": Clean, simple, 1-2 key numbers or quotes (best for leadership/career topics)
+- "data-heavy": Multiple statistics, charts implied (best for technical/research topics)
+- "quote-focused": Central quote with supporting context (best for thought leadership)
+
+colorScheme: Suggest colors that match the topic mood (professional blues for corporate, energetic oranges for innovation, etc.)
+
+=== OUTPUT REQUIREMENTS ===
+
 1. LinkedIn Post (max ${LINKEDIN_POST_MAX_LENGTH} characters):
-   - Hook: Engaging first line that grabs attention
-   - Body: 2-3 key insights using the verified claims
-   - For each quote or statistic, use the EXACT text from claims above
-   - Call to action at end
-   - ${LINKEDIN_HASHTAGS_MIN}-${LINKEDIN_HASHTAGS_MAX} relevant hashtags
+   - Hook: First 2-3 lines visible before "see more"
+   - Body: 2-3 key insights using verified claims with clear attribution
+   - Closing: Key takeaway + specific CTA + hashtags
 
-2. keyQuotes Array:
-   - Extract 2-4 key quotes used in the post
-   - Each must have: quote, author, sourceUrl, verificationLevel
-   - sourceUrl MUST match exactly from the claims above
+2. keyQuotes Array (2-4 quotes):
+   - Each with: quote, author, sourceUrl, verificationLevel
+   - sourceUrl MUST match exactly from claims above
+   - author: Use "Unknown" if not available (never empty string)
 
 3. infographicBrief:
-   - title: Catchy title for visual
-   - keyPoints: 3-5 bullet points summarizing main insights
+   - title: Max 8 words, catchy
+   - keyPoints: 3-5 scannable bullets
    - suggestedStyle: "minimal", "data-heavy", or "quote-focused"
-   - colorScheme: Optional color suggestion
+   - colorScheme: Mood-appropriate colors
 
 4. factCheckSummary:
-   - totalSourcesUsed: Number of unique sources referenced
-   - verifiedQuotes: Number of quotes with verified sources
-   - unverifiedClaims: Should be 0 (we only use verified claims)
-   - primarySources: Count of PRIMARY_SOURCE level claims used
-   - warnings: Array of any caveats (empty if none)
+   - totalSourcesUsed: Unique sources referenced
+   - verifiedQuotes: Quotes with verified sources
+   - unverifiedClaims: Should be 0
+   - primarySources: PRIMARY_SOURCE claims used
+   - warnings: Any caveats (empty array if none)
+
+${DELIMITERS.INSTRUCTIONS_END}
 
 Return ONLY valid JSON in this exact format:
 {
@@ -730,7 +836,7 @@ Return ONLY valid JSON in this exact format:
   }
 }
 
-CRITICAL: Every quote in keyQuotes MUST have a valid sourceUrl from the claims provided.`;
+CRITICAL: Every quote in keyQuotes MUST have a valid sourceUrl from the claims provided. Never invent sources.`;
 
   return prompt;
 }

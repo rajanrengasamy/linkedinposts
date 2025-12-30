@@ -1857,3 +1857,63 @@ Section 12 (CLI Entry Point) is now **fully QA-hardened** with all 23 issues res
 3. **Sections 14-15**: Documentation and final checks
 
 ---
+
+## Session: 2025-12-30 22:35 AEST
+
+### Summary
+Implemented comprehensive system prompt improvements across all 5 LLM stages (Validation, Scoring, Synthesis, Image Generation, Fix-JSON) based on expert reviews from Claude Opus and Codex. The changes enhance prompt reliability, output consistency, and address critical issues like the authenticity double-counting bug in scoring.
+
+### Work Completed
+- **Validation Prompt** ([perplexity.ts](src/validation/perplexity.ts)): Added Chain-of-Thought guidance with 6 verification tasks, confidence calibration scale (0.0-1.0 with specific ranges), quote fuzzy matching (>80% semantic similarity), publication date format guide (ISO 8601), contradictory sources handling, and source bounds (1-5 max)
+- **Scoring Prompt** ([gemini.ts](src/scoring/gemini.ts)): Fixed CRITICAL authenticity double-counting bug (now scores content independently of verification level), added 5-tier rubrics for all 4 dimensions, calibration guidance, negative signal detection, tie-breaking guidelines, and required 3 reasoning points per item
+- **Synthesis Prompt** ([gpt.ts](src/synthesis/gpt.ts)): Expanded SYSTEM_PROMPT with ATTENTION/STRUCTURE/CREDIBILITY/ACTION framework, added LinkedIn post structure guidance (hook templates, body structure, closing), tone guidelines by topic type, keyQuotes selection guidance, infographicBrief visual thinking, and thin content handling
+- **Image Prompt** ([nanoBanana.ts](src/image/nanoBanana.ts)): Enhanced STYLE_INSTRUCTIONS (minimal: 40%+ whitespace, data-heavy: 3-4 data points, quote-focused: 60%+ canvas), added negative prompts (avoid list), composition guidelines (rule of thirds, 5% margins), typography specification (4.5:1 contrast), mobile-first design (100px thumbnail test), color application (60/30/10 rule)
+- **Fix-JSON Prompt** ([index.ts](src/schemas/index.ts)): Replaced markdown code fences with consistent `<<<DELIMITER>>>` style, added minimal edits policy, conservative placeholder guidance ("Unknown", [], 0)
+- **Tests** ([validation.test.ts](tests/unit/validation.test.ts)): Updated 3 test assertions to match new prompt task names
+
+### Issues & Resolutions
+| Issue | Resolution | Status |
+|:------|:-----------|:-------|
+| Authenticity double-counting in scoring | Changed prompt to score "baseline credibility" independent of verification level | ✅ Resolved |
+| Scoring clustering at 70-80 | Added calibration guidance and full 0-100 rubrics | ✅ Resolved |
+| Inconsistent confidence values | Added specific calibration scale with examples | ✅ Resolved |
+| 3 failing tests after prompt changes | Updated test expectations to match new task names | ✅ Resolved |
+| Image model adding unwanted elements | Added comprehensive negative prompts (AVOID section) | ✅ Resolved |
+| Fix-JSON prompt using markdown fences | Replaced with consistent delimiter style | ✅ Resolved |
+
+### Key Decisions
+- **Authenticity scoring redesign**: Verification boosts are now applied ONLY in the pipeline code (`applyVerificationBoost()`), not by the LLM, preventing double-counting
+- **Prompt structure consistency**: All prompts now use `<<<DELIMITER>>>` style for untrusted content, not markdown code fences
+- **Thin content handling**: Synthesis now detects when claims < 3 and instructs GPT to keep post focused rather than padding with generic statements
+- **Conservative fix-JSON placeholders**: Missing required fields use safe defaults ("Unknown", [], 0) rather than fabrication
+
+### Learnings
+- LLM prompts benefit significantly from explicit calibration examples (e.g., "Quote on Twitter AND news = 0.85")
+- Negative prompts for image generation are as important as positive guidance
+- Chain-of-thought with numbered sub-steps improves verification task consistency
+- `PROMPT_OVERHEAD` constants need updating when prompts expand significantly
+
+### Open Items / Blockers
+- [ ] End-to-end test with real API keys to validate prompt improvements
+- [ ] Monitor scoring distribution in production to verify calibration guidance effectiveness
+- [ ] Consider A/B testing old vs new prompts if metrics available
+
+### Context for Next Session
+**All 5 system prompts have been comprehensively improved** based on the expert reviews in `docs/claudeReviewSystemprompt.md` and `docs/codexReviewSystemprompt.md`.
+
+**Key improvements implemented:**
+1. Validation: Chain-of-thought, confidence calibration, fuzzy quote matching
+2. Scoring: **CRITICAL FIX** - authenticity no longer double-counts verification boost
+3. Synthesis: LinkedIn post structure, tone guidelines, thin content handling
+4. Image: Negative prompts, composition, typography, mobile-first
+5. Fix-JSON: Minimal edits policy, consistent delimiters
+
+**Test Results**: 603 tests pass ✅
+**TypeScript**: Compiles with 0 errors ✅
+
+**Recommended next steps:**
+1. Run full pipeline with real API keys to test improved prompts
+2. Review generated output quality with the new prompts
+3. Continue with remaining PRD sections if applicable
+
+---
