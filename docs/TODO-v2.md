@@ -882,16 +882,16 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
   - [x] Test similarity-based deduplication
   - [x] Test edge cases (empty content, identical content)
 
-- [ ] `schemas.test.ts`:
-  - [ ] Test RawItem validation
-  - [ ] Test ValidatedItem validation
-  - [ ] Test ScoredItem validation
-  - [ ] Test rejection of invalid data
-  - [ ] Test parseModelResponse edge cases
+- [x] `schemas.test.ts`:
+  - [x] Test RawItem validation
+  - [x] Test ValidatedItem validation
+  - [x] Test ScoredItem validation
+  - [x] Test rejection of invalid data
+  - [x] Test parseModelResponse edge cases
 
-- [ ] `cost.test.ts`:
-  - [ ] Test cost estimation accuracy
-  - [ ] Test different quality profiles
+- [x] `cost.test.ts`:
+  - [x] Test cost estimation accuracy
+  - [x] Test different quality profiles
 
 - [x] `scoring.test.ts`:
   - [x] Test weighted score calculation
@@ -939,20 +939,20 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
 
 **Directory: `tests/golden/`**
 
-- [ ] Create golden test cases:
-  - [ ] Input prompt → expected output structure
-  - [ ] Validate JSON schema compliance
-  - [ ] Check required fields present
+- [x] Create golden test cases:
+  - [x] Input prompt -> expected output structure
+  - [x] Validate JSON schema compliance
+  - [x] Check required fields present
 
-- [ ] `golden.test.ts`:
-  - [ ] Run pipeline with mocked APIs
-  - [ ] Compare output structure to golden files
-  - [ ] Fail on unexpected schema changes
+- [x] `golden.test.ts`:
+  - [x] Run pipeline with mocked APIs
+  - [x] Compare output structure to golden files
+  - [x] Fail on unexpected schema changes
 
 ### 13.4 Evaluation Harness (NEW)
 
 **File: `tests/evaluate.ts`**
-- [ ] Create evaluation script:
+- [x] Create evaluation script:
   ```typescript
   async function evaluate(outputDir: string) {
     const checks = [
@@ -975,12 +975,15 @@ This TODO addresses all feedback from `prd-feedbackv1.md` and aligns with PRD v2
     }
   }
   ```
-- [ ] `checkNoQuotesWithoutSources`: Every quote in linkedin_post.md has URL
-- [ ] `checkPostLengthConstraints`: Under 3000 characters
-- [ ] `checkAllFilesWritten`: All expected files exist
-- [ ] `checkSourcesJsonValid`: Valid against SourceReferenceSchema
-- [ ] `checkIdReferences`: top_50.json IDs exist in validated_data.json
-- [ ] `checkVerificationLevels`: Levels correctly assigned
+- [x] `checkNoQuotesWithoutSources`: Every quote in linkedin_post.md has URL
+- [x] `checkPostLengthConstraints`: Under 3000 characters
+- [x] `checkAllFilesWritten`: All expected files exist
+- [x] `checkSourcesJsonValid`: Valid against SourceReferenceSchema
+- [x] `checkIdReferences`: top_50.json IDs exist in validated_data.json
+- [x] `checkVerificationLevels`: Levels correctly assigned
+
+**File: `tests/unit/evaluate.test.ts`**
+- [x] Unit tests for all evaluation functions (40 tests)
 
 ---
 

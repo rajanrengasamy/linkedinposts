@@ -327,7 +327,13 @@ export const ValidationResponseSchema = z.object({
   ),
 
   /** Verified publication date in ISO 8601 format (optional) */
-  publishedAtVerified: z.string().datetime().optional(),
+  // LLMs often return null instead of omitting optional fields, so accept both
+  publishedAtVerified: z
+    .string()
+    .datetime()
+    .nullable()
+    .optional()
+    .transform((val) => val ?? undefined), // Normalize null to undefined
 });
 
 /** Type inferred from ValidationResponseSchema */
@@ -523,13 +529,26 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no expla
  * Extracts JSON from the response content (handling markdown code fences
  * and other LLM output patterns) and validates against ValidationResponseSchema.
  *
+ * Handles common LLM quirks:
+ * - Array wrapping: If LLM returns [obj] instead of obj, extracts first element
+ * - Null fields: Schema transforms null to undefined for optional fields
+ *
  * @param content - Raw response content from Perplexity
  * @returns Parsed and validated ValidationResponse
  * @throws Error if JSON parsing fails or validation fails
  */
 export function parseValidationResponse(content: string): ValidationResponse {
   // Use parseModelResponse to extract JSON from potential markdown/text
-  const parsed = parseModelResponse<unknown>(content);
+  let parsed = parseModelResponse<unknown>(content);
+
+  // Handle LLM quirk: sometimes returns array instead of object
+  // If we got an array, extract the first element
+  if (Array.isArray(parsed)) {
+    if (parsed.length === 0) {
+      throw new Error('Validation response is empty array');
+    }
+    parsed = parsed[0];
+  }
 
   // Validate against schema
   const result = ValidationResponseSchema.safeParse(parsed);

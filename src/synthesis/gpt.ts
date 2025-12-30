@@ -37,7 +37,7 @@ const GPT_MODEL = 'gpt-5.2';
 
 /**
  * Reasoning effort level for GPT-5.2 Thinking.
- * Options: 'none' | 'low' | 'medium' | 'high' | 'xhigh'
+ * Options: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
  * 'medium' balances reasoning depth with response speed.
  */
 const REASONING_EFFORT = 'medium' as const;
@@ -70,23 +70,7 @@ export const GPT_PRICING = {
 /**
  * Reasoning effort levels for GPT-5.2 Thinking
  */
-export type ReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh';
-
-/**
- * GPT-5.2 specific reasoning configuration.
- * This extends the standard OpenAI API with thinking model parameters.
- */
-interface GPT52ReasoningConfig {
-  reasoning: {
-    effort: ReasoningEffort;
-  };
-}
-
-/**
- * Extended chat completion parameters for GPT-5.2 with reasoning support.
- * Combines standard OpenAI parameters with GPT-5.2 specific reasoning config.
- */
-type GPT52ChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParamsNonStreaming & GPT52ReasoningConfig;
+export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 
 /**
  * Options for GPT request configuration
@@ -166,7 +150,15 @@ INVIOLABLE RULES:
 3. Use "Unknown" for missing author names - NEVER use empty strings
 4. Keep posts under 3000 characters with 3-5 relevant hashtags
 5. Always respond with valid JSON matching the exact requested schema
-6. When uncertain about a claim's accuracy, omit it rather than risk misinformation`;
+6. When uncertain about a claim's accuracy, omit it rather than risk misinformation
+
+OUTPUT QUALITY REQUIREMENTS:
+- The linkedinPost MUST be a clean, ready-to-publish post with NO meta-commentary
+- NEVER include phrases like "I should...", "Let me...", "I'm going to...", "This post will..."
+- NEVER explain what you're doing or describe your process - just produce the final output
+- NEVER include instructions or method descriptions in the post itself
+- The output should read as if written by a human professional, not an AI explaining its work
+- No placeholder text, no "insert X here", no "[description of what goes here]"`;
 
 // ============================================
 // Client Initialization
@@ -297,18 +289,21 @@ export function resetOpenAIClient(): void {
 /**
  * Make a request to the GPT-5.2 API with reasoning enabled.
  *
- * Sends a prompt to GPT-5.2 with the specified reasoning effort and returns
- * the response content along with usage statistics. Uses retry logic with
- * exponential backoff for resilience against transient failures and rate limits.
+ * Uses the Responses API (recommended for GPT-5.2) which provides:
+ * - Better reasoning support with persistent chain-of-thought
+ * - 40-80% better cache utilization (lower costs)
+ * - 3% better performance on benchmarks vs Chat Completions
  *
  * Features:
- * - GPT-5.2 Thinking with configurable reasoning effort
- * - JSON response format enforcement
+ * - GPT-5.2 with configurable reasoning effort (none → xhigh)
+ * - JSON response format enforcement via text.format
  * - Timeout enforcement via Promise.race
  * - Retry with exponential backoff (CRITICAL_RETRY_OPTIONS)
  * - Error sanitization to prevent API key exposure
  *
- * @param prompt - The user prompt to send (system prompt added automatically)
+ * @see https://platform.openai.com/docs/guides/migrate-to-responses
+ *
+ * @param prompt - The user prompt to send (instructions added automatically)
  * @param options - Optional request configuration
  * @returns Promise resolving to GPTResponse with content and usage stats
  * @throws Error if API key is missing or all retries fail
@@ -329,7 +324,7 @@ export async function makeGPTRequest(
 ): Promise<GPTResponse> {
   const {
     maxTokens = MAX_TOKENS,
-    temperature = TEMPERATURE,
+    // Note: temperature is not used with Responses API reasoning models
     timeout = STAGE_TIMEOUT_MS,
     reasoningEffort = REASONING_EFFORT,
     operationName = 'GPT synthesis request',
@@ -354,43 +349,30 @@ export async function makeGPTRequest(
         );
       });
 
-      // Build the API request with GPT-5.2 specific parameters
-      // Uses GPT52ChatCompletionParams type to properly type the reasoning parameter
-      const requestParams: GPT52ChatCompletionParams = {
+      // Build the API request using Responses API (recommended for GPT-5.2)
+      // Responses API provides better reasoning support, caching, and performance
+      // @see https://platform.openai.com/docs/guides/migrate-to-responses
+      const apiPromise = client.responses.create({
         model: GPT_MODEL,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: prompt },
-        ],
+        instructions: SYSTEM_PROMPT,
+        input: [{ role: 'user' as const, content: prompt }],
         reasoning: { effort: reasoningEffort },
-        response_format: { type: 'json_object' },
-        max_tokens: maxTokens,
-        temperature: temperature,
-      };
-
-      // Cast to base type for OpenAI client (reasoning param is GPT-5.2 specific)
-      const apiPromise = client.chat.completions.create(
-        requestParams as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming
-      );
+        text: { format: { type: 'json_object' as const } },
+        max_output_tokens: maxTokens,
+      });
 
       // Race between API call and timeout
-      // Type assertion needed because Promise.race returns union with Stream type
-      const response = await Promise.race([apiPromise, timeoutPromise]) as OpenAI.Chat.Completions.ChatCompletion;
+      const response = await Promise.race([apiPromise, timeoutPromise]);
 
-      // MAJ-18: Extract content with specific error messages for each failure case
-      if (!response.choices || response.choices.length === 0) {
-        throw new Error('GPT API response has no choices array');
-      }
-      const firstChoice = response.choices[0];
-      if (!firstChoice.message) {
-        throw new Error('GPT API response choice has no message object');
-      }
-      const content = firstChoice.message.content;
+      // Extract content from Responses API structure
+      // Responses API uses output_text helper for text content
+      const content = response.output_text;
       if (!content || content.trim().length === 0) {
-        throw new Error('GPT API response message has empty content');
+        throw new Error('GPT API response has empty output_text');
       }
 
       // Extract usage statistics (MAJ-2: throw if missing for accurate cost tracking)
+      // Responses API uses input_tokens/output_tokens instead of prompt_tokens/completion_tokens
       if (!response.usage) {
         throw new Error('Missing usage statistics in GPT API response');
       }
@@ -399,8 +381,8 @@ export async function makeGPTRequest(
       return {
         content: content.trim(),
         usage: {
-          promptTokens: usage.prompt_tokens,
-          completionTokens: usage.completion_tokens,
+          promptTokens: usage.input_tokens,
+          completionTokens: usage.output_tokens,
           totalTokens: usage.total_tokens,
         },
       };
@@ -716,6 +698,8 @@ ${DELIMITERS.INSTRUCTIONS_START}
 
 === POST STRUCTURE ===
 
+AIM FOR SUBSTANTIAL POSTS (1500-2500 characters). Short posts lack depth. LinkedIn rewards thoughtful, comprehensive content.
+
 OPENING HOOK (First 2-3 lines - CRITICAL):
 Choose ONE approach that fits your strongest claim:
 - Surprising Statistic: Lead with a counter-intuitive number ("72% of executives say X, yet only 15% are doing Y")
@@ -723,22 +707,60 @@ Choose ONE approach that fits your strongest claim:
 - Contrarian Take: Present an unexpected perspective ("The conventional wisdom about X misses the point entirely")
 - Bold Statement: Make a claim you can back up ("X is not what most people think it is")
 
-BODY STRUCTURE:
-- Use short paragraphs (1-3 sentences max)
-- One key quote OR statistic per insight - don't stack multiple in one paragraph
-- Add line breaks between paragraphs for visual breathing room
-- Build from hook -> supporting evidence -> deeper insight -> synthesis
-- Use CAPS sparingly for emphasis on key words (not whole sentences)
+BODY STRUCTURE - USE RICH FORMATTING:
+
+1. **Section Headers**: Use ### headers to create clear sections (e.g., "### What's changing", "### The real bottleneck", "### My takeaway")
+
+2. **Numbered Lists**: For sequential points or frameworks, use numbered lists with **bold lead-ins**:
+   1. **First point** explanation here
+   2. **Second point** explanation here
+
+3. **Bullet Points**: For non-sequential items, use bullets:
+   • Point with **bold emphasis** on key phrase
+   • Another point with specific details
+
+4. **Bold for Emphasis**: Use **bold** liberally on key phrases, not just single words. Bold the insight, not filler.
+
+5. **Multiple Perspectives**: Don't just state one thing - explore:
+   - What changed?
+   - Why it matters?
+   - What's the implication?
+   - What should readers do?
+
+6. **Specificity**: Name specific tools, companies, frameworks when the claims support it. Generic insights feel thin.
+
+SECTION FLOW (recommended structure):
+- HOOK: 2-3 punchy lines
+- CONTEXT: What's happening / what changed (with numbered points if multiple factors)
+- SECTION 1: "### What's different now" or similar - explore implications with bullets
+- SECTION 2: "### The real challenge" or similar - go deeper on one angle
+- TAKEAWAY: "### My takeaway" - your synthesis
+- CTA: Specific question
+- HASHTAGS: At the very end
 
 CLOSING:
-- Key Takeaway: One clear, actionable insight the reader should remember
+- Key Takeaway: Frame it as "### My takeaway" section with 2-3 sentences of synthesis
 - Specific CTA: Ask a question that invites professional perspectives (avoid generic "What do you think?")
-- Hashtags: ${LINKEDIN_HASHTAGS_MIN}-${LINKEDIN_HASHTAGS_MAX} relevant hashtags at the end, not scattered throughout
+- Sources Section: Add "---" then "Sources:" with numbered list of URLs for key quotes used
+- Hashtags: ${LINKEDIN_HASHTAGS_MIN}-${LINKEDIN_HASHTAGS_MAX} relevant hashtags at the very end
+
+CITATION FORMAT:
+- When quoting a source in the post body, add a bracketed number: "quote text" [1]
+- At the end (before hashtags), include a Sources section:
+  ---
+  Sources:
+  [1] https://example.com/article
+  [2] https://another-source.com/report
+- Only include sources that are actually cited in the post
+- This adds ~200-400 chars but provides crucial credibility
 
 FORMATTING RULES:
+- TARGET 1500-2500 characters (use the space - depth wins)
 - Maximum ${LINKEDIN_POST_MAX_LENGTH} characters total
 - Line breaks between paragraphs (double newline)
-- Avoid walls of text - if a paragraph is more than 3 lines, break it up
+- Use ### headers to create scannable sections
+- Use **bold** for key phrases throughout
+- Use numbered lists for frameworks, bullets for features/examples
 - No emoji unless the topic specifically warrants it
 - Use quotation marks for direct quotes, attribute clearly
 
@@ -785,10 +807,32 @@ colorScheme: Suggest colors that match the topic mood (professional blues for co
 
 === OUTPUT REQUIREMENTS ===
 
-1. LinkedIn Post (max ${LINKEDIN_POST_MAX_LENGTH} characters):
-   - Hook: First 2-3 lines visible before "see more"
-   - Body: 2-3 key insights using verified claims with clear attribution
-   - Closing: Key takeaway + specific CTA + hashtags
+CRITICAL: The linkedinPost must be CLEAN, POLISHED, and READY TO PUBLISH.
+- NO meta-commentary ("I should...", "Let me...", "I'm citing...")
+- NO process explanations or method descriptions
+- NO self-referential text - write AS the author, not ABOUT the authoring process
+- The post should flow naturally as professional content, not as AI-generated explanation
+
+1. LinkedIn Post (TARGET: 1500-2500 characters, max ${LINKEDIN_POST_MAX_LENGTH}):
+   - Hook: 2-3 punchy lines that grab attention
+   - Context: What's happening with numbered points if multiple factors
+   - Section 1: ### header + bullets exploring implications
+   - Section 2: ### header going deeper on the key challenge/opportunity
+   - Takeaway: ### My takeaway with 2-3 synthesis sentences
+   - CTA: Specific question inviting professional perspectives
+   - Sources: "---" separator then "Sources:" with [1], [2] URLs matching in-text citations
+   - Hashtags: At the very end
+
+   CITATION EXAMPLE in post body: As McKinsey notes, "quote here" [1]
+   SOURCES SECTION FORMAT (before hashtags):
+   ---
+   Sources:
+   [1] https://mckinsey.com/...
+   [2] https://cloudsecurityalliance.org/...
+
+   USE RICH FORMATTING: ### headers, **bold** phrases, numbered lists, bullet points
+   SHORT POSTS ARE REJECTED - aim for depth and substance
+   CITATIONS ARE REQUIRED - every key quote must have [N] reference with URL in Sources section
 
 2. keyQuotes Array (2-4 quotes):
    - Each with: quote, author, sourceUrl, verificationLevel

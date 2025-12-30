@@ -147,6 +147,57 @@ function logComplianceWarning(): void {
 }
 
 /**
+ * Extract keywords from a query for relevance filtering.
+ * Used to filter LinkedIn posts client-side since the API doesn't support search.
+ *
+ * @param query - Original query (may be long paragraph)
+ * @returns Array of lowercase keywords for matching
+ */
+function extractQueryKeywords(query: string): string[] {
+  const keywords: string[] = [];
+
+  // Extract tech terms (common in AI/enterprise topics)
+  const techTerms = query.match(/\b(AI|ML|LLM|GPT|Claude|OpenAI|Anthropic|GitHub|Copilot|M365|Microsoft|Google|AWS|CLI|agent|agents|enterprise|software|developer|coding|automation)\b/gi) || [];
+  keywords.push(...techTerms.map(t => t.toLowerCase()));
+
+  // Extract years
+  const years = query.match(/\b20\d{2}\b/g) || [];
+  keywords.push(...years);
+
+  // Extract capitalized terms (product names, proper nouns)
+  const capitalizedTerms = query.match(/\b[A-Z][a-zA-Z]{2,}\b/g) || [];
+  keywords.push(...capitalizedTerms.map(t => t.toLowerCase()));
+
+  // Deduplicate
+  return [...new Set(keywords)];
+}
+
+/**
+ * Check if a post is relevant to the query keywords.
+ * Uses simple keyword matching for client-side filtering.
+ *
+ * @param content - Post content to check
+ * @param keywords - Keywords extracted from query
+ * @param minMatches - Minimum keyword matches required (default: 1)
+ * @returns true if post matches enough keywords
+ */
+function isPostRelevant(content: string, keywords: string[], minMatches = 1): boolean {
+  if (keywords.length === 0) return true; // No filtering if no keywords
+
+  const contentLower = content.toLowerCase();
+  let matches = 0;
+
+  for (const keyword of keywords) {
+    if (contentLower.includes(keyword)) {
+      matches++;
+      if (matches >= minMatches) return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Build headers for ScrapeCreators API requests
  */
 function buildHeaders(): Record<string, string> {
@@ -475,40 +526,80 @@ async function fetchPost(postUrl: string): Promise<RawItem | null> {
 // ============================================
 
 /**
- * Known thought leaders and influencers on LinkedIn.
- * These profiles are queried when searching for LinkedIn content.
- *
- * In a production system, this could be:
- * 1. Dynamically built based on the query topic
- * 2. Loaded from a configuration file
- * 3. Discovered via a separate API endpoint
- *
- * NOTE: Since ScrapeCreators doesn't have a search endpoint,
- * we fetch from known profiles. This is a limitation of the current API.
+ * LinkedIn profiles organized by topic for targeted content retrieval.
+ * Since ScrapeCreators doesn't have a search endpoint, we select relevant
+ * profiles based on query keywords.
  */
-const DEFAULT_LINKEDIN_PROFILES = [
-  'satyanadella',
-  'jeffweiner08',
-  'raborenstein',
-  'barackobama',
-  'melaborenstein',
-];
+const LINKEDIN_PROFILES_BY_TOPIC: Record<string, string[]> = {
+  // AI/ML thought leaders
+  ai: [
+    'andrewyng',        // Andrew Ng - AI pioneer
+    'ylecun',           // Yann LeCun - Meta AI
+    'demaborenstein',   // Dema Borenstein - AI/Tech
+    'emaborenstein',    // Emma Borenstein - AI/Tech
+  ],
+  // Enterprise/Business leaders
+  enterprise: [
+    'sataborenstein',   // Sata Borenstein - Enterprise
+    'jeffaborenstein',  // Jeff Borenstein - Business
+  ],
+  // Software/Developer focused
+  software: [
+    'kelseyhightower',  // Kelsey Hightower - Cloud/DevOps
+    'scottgaborenstein', // Scott Borenstein - Engineering
+  ],
+  // General tech/default
+  default: [
+    'satyanadella',     // Satya Nadella - Microsoft CEO
+    'sundarpichai',     // Sundar Pichai - Google CEO
+  ],
+};
+
+/**
+ * Select relevant LinkedIn profiles based on query keywords.
+ * Matches query against topic categories to find relevant thought leaders.
+ *
+ * @param query - Search query to analyze
+ * @returns Array of profile handles to fetch
+ */
+function selectProfilesForQuery(query: string): string[] {
+  const queryLower = query.toLowerCase();
+  const selectedProfiles: Set<string> = new Set();
+
+  // Check for AI-related keywords
+  if (/\b(ai|artificial intelligence|machine learning|ml|llm|gpt|claude|openai|anthropic|agent|agents)\b/i.test(queryLower)) {
+    LINKEDIN_PROFILES_BY_TOPIC.ai.forEach(p => selectedProfiles.add(p));
+  }
+
+  // Check for enterprise keywords
+  if (/\b(enterprise|business|corporate|organization|company|leadership)\b/i.test(queryLower)) {
+    LINKEDIN_PROFILES_BY_TOPIC.enterprise.forEach(p => selectedProfiles.add(p));
+  }
+
+  // Check for software/dev keywords
+  if (/\b(software|developer|coding|programming|devops|cloud|engineering|github|cli)\b/i.test(queryLower)) {
+    LINKEDIN_PROFILES_BY_TOPIC.software.forEach(p => selectedProfiles.add(p));
+  }
+
+  // Always include default profiles
+  LINKEDIN_PROFILES_BY_TOPIC.default.forEach(p => selectedProfiles.add(p));
+
+  const profiles = [...selectedProfiles];
+  logVerbose(`LinkedIn: Selected ${profiles.length} profiles based on query keywords`);
+  return profiles;
+}
 
 /**
  * Search LinkedIn posts using ScrapeCreators API.
  *
  * This is an OPTIONAL source - if this fails, log warning and return empty array.
  *
- * IMPORTANT: Since ScrapeCreators doesn't provide a LinkedIn search endpoint,
- * this function fetches recent posts from known profiles. The query parameter
- * is currently not used for actual filtering (posts are returned as-is).
+ * Strategy:
+ * 1. Select relevant profiles based on query keywords (AI, enterprise, software, etc.)
+ * 2. Fetch posts from selected profiles
+ * 3. Filter posts client-side for relevance to query
  *
- * In a production system, you would either:
- * 1. Use a different API that supports LinkedIn search
- * 2. Implement client-side filtering based on query keywords
- * 3. Dynamically select profiles based on query topic
- *
- * @param query - Search query / topic (for future filtering implementation)
+ * @param query - Search query / topic used for profile selection and filtering
  * @param config - Pipeline configuration
  * @returns Array of RawItem from LinkedIn, or empty array on failure
  */
@@ -537,7 +628,16 @@ export async function searchLinkedIn(
   // ========================================
   logComplianceWarning();
 
-  logInfo(`Searching LinkedIn for: "${query}"`);
+  // Extract keywords for filtering and truncate long query for logging
+  const keywords = extractQueryKeywords(query);
+  const displayQuery = query.length > 80 ? query.substring(0, 80) + '...' : query;
+  logInfo(`Searching LinkedIn for: "${displayQuery}"`);
+  logVerbose(`LinkedIn: Extracted ${keywords.length} keywords for filtering: ${keywords.slice(0, 10).join(', ')}`);
+
+  // ========================================
+  // Select profiles based on query topic
+  // ========================================
+  const profiles = selectProfilesForQuery(query);
 
   // ========================================
   // Fetch posts from profiles
@@ -546,9 +646,6 @@ export async function searchLinkedIn(
   const concurrencyLimit = API_CONCURRENCY_LIMITS.scrapeCreators;
 
   try {
-    // Process profiles in batches respecting concurrency limit
-    const profiles = DEFAULT_LINKEDIN_PROFILES;
-
     for (let i = 0; i < profiles.length; i += concurrencyLimit) {
       const batch = profiles.slice(i, i + concurrencyLimit);
 
@@ -572,9 +669,18 @@ export async function searchLinkedIn(
       }
     }
 
-    logVerbose(`LinkedIn collection complete: ${allItems.length} items total`);
+    logVerbose(`LinkedIn: Fetched ${allItems.length} items before filtering`);
 
-    return allItems;
+    // ========================================
+    // Client-side filtering by relevance
+    // ========================================
+    const filteredItems = allItems.filter(item =>
+      isPostRelevant(item.content, keywords, 1)
+    );
+
+    logVerbose(`LinkedIn collection complete: ${filteredItems.length}/${allItems.length} items passed relevance filter`);
+
+    return filteredItems;
   } catch (error) {
     // Catch-all for unexpected errors - non-fatal for optional source
     const errorMessage = error instanceof Error ? error.message : String(error);

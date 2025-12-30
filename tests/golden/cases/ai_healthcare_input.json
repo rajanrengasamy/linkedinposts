@@ -1,0 +1,20 @@
+{
+  "prompt": "AI trends in healthcare",
+  "config": {
+    "sources": ["web"],
+    "qualityProfile": "default",
+    "maxPerSource": 10,
+    "maxTotal": 30,
+    "skipValidation": false,
+    "skipScoring": false,
+    "skipImage": true,
+    "validationBatchSize": 10,
+    "scoringBatchSize": 25,
+    "timeoutSeconds": 180,
+    "imageResolution": "2k",
+    "outputDir": "./output",
+    "saveRaw": false,
+    "verbose": false,
+    "dryRun": false
+  }
+}

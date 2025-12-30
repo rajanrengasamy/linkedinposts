@@ -1,0 +1,57 @@
+{
+  "description": "Expected output structure for fast/minimal mode with skipped stages",
+  "expectedFiles": [
+    "validated_data.json",
+    "scored_data.json",
+    "top_50.json",
+    "synthesis.json",
+    "linkedin_post.md",
+    "sources.json",
+    "sources.md",
+    "pipeline_status.json"
+  ],
+  "synthesis": {
+    "hasSchemaVersion": true,
+    "schemaVersionValue": "1.0.0",
+    "hasGeneratedAt": true,
+    "hasPrompt": true,
+    "hasLinkedinPost": true,
+    "linkedinPostMaxLength": 3000,
+    "hasKeyQuotes": true,
+    "keyQuotesHaveSourceUrls": true,
+    "keyQuotesHaveVerificationLevels": true,
+    "validVerificationLevels": ["UNVERIFIED", "SOURCE_CONFIRMED", "MULTISOURCE_CONFIRMED", "PRIMARY_SOURCE"],
+    "hasInfographicBrief": true,
+    "hasFactCheckSummary": true,
+    "hasMetadata": true
+  },
+  "sources": {
+    "hasSchemaVersion": true,
+    "hasGeneratedAt": true,
+    "hasTotalSources": true,
+    "sourcesArrayNotEmpty": true,
+    "allSourcesHaveUrl": true
+  },
+  "pipelineStatus": {
+    "hasSuccess": true,
+    "hasStartedAt": true,
+    "hasConfig": true,
+    "configHasQualityProfile": true,
+    "qualityProfileValue": "fast"
+  },
+  "validatedData": {
+    "isArray": true,
+    "allItemsHaveValidation": true,
+    "skippedValidationAllUnverified": true
+  },
+  "scoredData": {
+    "isArray": true,
+    "allItemsHaveScores": true,
+    "skippedScoringUsesFallback": true
+  },
+  "notes": [
+    "When skipValidation=true, all items should have validation.level='UNVERIFIED'",
+    "When skipScoring=true, fallback scoring is used (heuristic based on recency/engagement)",
+    "Image generation is skipped (infographic.png not expected)"
+  ]
+}

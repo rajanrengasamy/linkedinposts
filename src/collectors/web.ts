@@ -34,6 +34,85 @@ interface ParsedContent {
 }
 
 // ============================================
+// Meta-Content Filter (CODEX-PROD-BUG-1 Fix)
+// ============================================
+
+/**
+ * Patterns that indicate meta/instructional content from LLM reasoning.
+ * These should NEVER become verified claims.
+ */
+const META_CONTENT_PATTERNS: RegExp[] = [
+  // Reasoning tags
+  /<think>/i,
+  /<\/think>/i,
+  /<reasoning>/i,
+
+  // Self-referential phrases
+  /\bI should\b/i,
+  /\bI will\b/i,
+  /\bI'm going to\b/i,
+  /\bI am going to\b/i,
+  /\bLet me\b/i,
+  /\bI need to\b/i,
+  /\bI'll\b/i,
+
+  // AI self-identification
+  /\bas an AI\b/i,
+  /\bas a language model\b/i,
+  /\bAs an AI\b/,
+
+  // Process descriptions
+  /\bsearch results\b/i,
+  /\bthe user is asking\b/i,
+  /\bthe query\b/i,
+  /\bprovide information\b/i,
+  /\bcite.*source/i,
+  /\bcitation method\b/i,
+  /\bbracket citation\b/i,
+
+  // Instructional artifacts
+  /\bgo through.*systematically\b/i,
+  /\bhere's what I found\b/i,
+  /\bbased on.*search\b/i,
+  /\baccording to my search\b/i,
+
+  // Format/structure meta-text
+  /\bformat.*response\b/i,
+  /\bstructure.*answer\b/i,
+];
+
+/**
+ * Check if content is meta/instructional text that should be filtered out.
+ *
+ * This prevents LLM reasoning artifacts from becoming "verified claims"
+ * which would contaminate the synthesis output.
+ *
+ * @param content - Content block to check
+ * @returns true if content is meta/instructional and should be filtered
+ */
+export function isMetaContent(content: string): boolean {
+  // Check against all meta patterns
+  for (const pattern of META_CONTENT_PATTERNS) {
+    if (pattern.test(content)) {
+      return true;
+    }
+  }
+
+  // Additional heuristic: if content starts with procedural language
+  const trimmed = content.trim();
+  if (/^(First|Next|Then|Finally|Now|Let's|Here),?\s/i.test(trimmed)) {
+    // Check if it's truly procedural (not a real insight that happens to start this way)
+    // Procedural content usually has more self-referential language
+    const selfReferenceCount = (content.match(/\b(I|my|me|we|our)\b/gi) || []).length;
+    if (selfReferenceCount >= 2) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// ============================================
 // Search Prompt Builder
 // ============================================
 
@@ -86,8 +165,9 @@ Be thorough and include multiple perspectives. Prioritize recent (2024-2025) and
  *
  * Strategy:
  * 1. Split response into logical blocks (paragraphs/sections)
- * 2. Match content to citations by order of appearance
- * 3. Extract titles from content patterns (quotes, headers)
+ * 2. Filter out meta/instructional content (CODEX-PROD-BUG-1)
+ * 3. Match content to citations by order of appearance
+ * 4. Extract titles from content patterns (quotes, headers)
  *
  * @param response - Perplexity API response
  * @returns Array of parsed content blocks
@@ -111,6 +191,9 @@ function parsePerplexityResponse(response: PerplexityResponse): ParsedContent[] 
     .map((block) => block.trim())
     .filter((block) => block.length > 50); // Filter out tiny fragments
 
+  // CODEX-PROD-BUG-1: Track filtered meta-content for diagnostics
+  let metaContentFiltered = 0;
+
   // Match blocks to citations - 1:1 mapping only
   // Only process blocks that have a corresponding citation to maintain provenance accuracy
   // Blocks without matching citations are skipped to avoid incorrect source attribution
@@ -120,6 +203,14 @@ function parsePerplexityResponse(response: PerplexityResponse): ParsedContent[] 
     const sourceUrl = citations[i]; // Direct 1:1 mapping, no modulo
 
     if (!sourceUrl) continue;
+
+    // CODEX-PROD-BUG-1: Filter out meta/instructional content
+    // This prevents LLM reasoning artifacts from becoming "verified claims"
+    if (isMetaContent(block)) {
+      metaContentFiltered++;
+      logVerbose(`Filtered meta-content: "${block.substring(0, 80)}..."`);
+      continue;
+    }
 
     // Try to extract a title from the block
     // Look for quoted text or the first sentence as title
@@ -140,25 +231,14 @@ function parsePerplexityResponse(response: PerplexityResponse): ParsedContent[] 
     }
   }
 
-  // Also create entries for each unique citation to ensure coverage
-  const usedUrls = new Set(results.map((r) => r.sourceUrl));
-  for (const citation of citations) {
-    try {
-      const normalizedUrl = normalizeUrl(citation);
-      if (!usedUrls.has(normalizedUrl)) {
-        // Create a minimal entry for unused citations
-        // Extract domain as title
-        const url = new URL(normalizedUrl);
-        results.push({
-          content: `Reference from ${url.hostname}`,
-          sourceUrl: normalizedUrl,
-        });
-        usedUrls.add(normalizedUrl);
-      }
-    } catch {
-      logVerbose(`Skipping invalid citation URL: ${citation}`);
-    }
+  // CODEX-PROD-BUG-1: Log filtering stats
+  if (metaContentFiltered > 0) {
+    logWarning(`Filtered ${metaContentFiltered} meta-content blocks from Perplexity response`);
   }
+
+  // NOTE: Removed filler items creation for unused citations (CODEX-PROD-BUG-1)
+  // Previously created "Reference from {hostname}" entries which became low-quality claims.
+  // Now we only use content blocks that have real content AND valid citations.
 
   return results;
 }

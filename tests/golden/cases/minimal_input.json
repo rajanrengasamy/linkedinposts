@@ -1,0 +1,20 @@
+{
+  "prompt": "Tech industry news",
+  "config": {
+    "sources": ["web"],
+    "qualityProfile": "fast",
+    "maxPerSource": 5,
+    "maxTotal": 10,
+    "skipValidation": true,
+    "skipScoring": true,
+    "skipImage": true,
+    "validationBatchSize": 10,
+    "scoringBatchSize": 25,
+    "timeoutSeconds": 60,
+    "imageResolution": "2k",
+    "outputDir": "./output",
+    "saveRaw": false,
+    "verbose": false,
+    "dryRun": false
+  }
+}
