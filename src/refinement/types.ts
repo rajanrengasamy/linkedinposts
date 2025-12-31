@@ -17,7 +17,7 @@
  * |---------|------------|--------------------------------|------------------------|
  * | gemini  | Google     | gemini-3-flash-preview         | Fast, cost-effective   |
  * | gpt     | OpenAI     | gpt-5.2                        | Most capable reasoning |
- * | claude  | Anthropic  | claude-sonnet-4-5-20241022     | Balanced reasoning     |
+ * | claude  | Anthropic  | claude-sonnet-4-20250514     | Balanced reasoning     |
  * | kimi2   | OpenRouter | moonshotai/kimi-k2-thinking    | Deep reasoning         |
  */
 export type RefinementModel = 'gemini' | 'gpt' | 'claude' | 'kimi2';
@@ -38,7 +38,7 @@ export const REFINEMENT_MODELS: readonly RefinementModel[] = [
 export const REFINEMENT_MODEL_IDS: Record<RefinementModel, string> = {
   gemini: 'gemini-3-flash-preview',
   gpt: 'gpt-5.2',
-  claude: 'claude-sonnet-4-5-20241022',
+  claude: 'claude-sonnet-4-20250514',
   kimi2: 'moonshotai/kimi-k2-thinking',
 } as const;
 

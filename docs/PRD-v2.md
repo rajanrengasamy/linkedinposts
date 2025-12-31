@@ -1,7 +1,7 @@
 # PRD: LinkedIn Post Generator (Phase 0 - CLI)
 
-**Version**: 2.2
-**Last Updated**: 2025-12-30
+**Version**: 2.3
+**Last Updated**: 2025-12-31
 **Status**: Draft
 **Schema Version**: 1.0.0
 
@@ -23,14 +23,15 @@
 12. [CLI Interface](#cli-interface)
 13. [Multi-Post Generation](#multi-post-generation)
 14. [Prompt Refinement Phase](#prompt-refinement-phase)
-15. [Output Files](#output-files)
-16. [Project Structure](#project-structure)
-17. [Implementation Steps](#implementation-steps)
-18. [Testing Strategy](#testing-strategy)
-19. [Success Criteria](#success-criteria)
-20. [Definition of Done](#definition-of-done)
-21. [Open Questions](#open-questions)
-22. [Future Phases](#future-phases)
+15. [Synthesis Model Selection](#synthesis-model-selection)
+16. [Output Files](#output-files)
+17. [Project Structure](#project-structure)
+18. [Implementation Steps](#implementation-steps)
+19. [Testing Strategy](#testing-strategy)
+20. [Success Criteria](#success-criteria)
+21. [Definition of Done](#definition-of-done)
+22. [Open Questions](#open-questions)
+23. [Future Phases](#future-phases)
 
 ---
 
@@ -1160,6 +1161,96 @@ The following limitations exist in the current implementation:
 
 ---
 
+## Synthesis Model Selection
+
+The synthesis stage (Stage 4) now supports multiple LLM providers, similar to the refinement phase. This allows users to choose their preferred model for LinkedIn post generation based on quality, cost, or API availability.
+
+### Available Models
+
+| Model | Option Value | Provider | Model ID | Use Case |
+|-------|--------------|----------|----------|----------|
+| GPT-5.2 | `gpt` (default) | OpenAI | gpt-5.2 | Most capable, best post quality |
+| Gemini 3 Flash | `gemini` | Google | gemini-3-flash-preview | Cost-effective, fast (Flash used for cost optimization) |
+| Claude Sonnet 4.5 | `claude` | Anthropic | claude-sonnet-4-5-20241022 | Strong reasoning, balanced |
+| Kimi 2 | `kimi2` | OpenRouter | moonshotai/kimi-k2-thinking | Deep reasoning, extended context |
+
+### CLI Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--synthesis-model <model>` | Model: gpt\|gemini\|claude\|kimi2 | gpt |
+
+### Example Usage
+
+```bash
+# Default: GPT-5.2 (highest quality)
+npx tsx src/index.ts "AI trends in healthcare"
+
+# Cost-effective: Gemini 3 Pro
+npx tsx src/index.ts "AI trends" --synthesis-model gemini
+
+# Alternative: Claude Sonnet 4.5
+npx tsx src/index.ts "AI trends" --synthesis-model claude
+
+# Deep reasoning: Kimi 2 via OpenRouter
+npx tsx src/index.ts "AI trends" --synthesis-model kimi2
+```
+
+### API Key Requirements
+
+| Model | Required Key |
+|-------|-------------|
+| gpt | OPENAI_API_KEY |
+| gemini | GOOGLE_AI_API_KEY |
+| claude | ANTHROPIC_API_KEY |
+| kimi2 | OPENROUTER_API_KEY |
+
+### Architecture
+
+The synthesis module follows the same pattern as refinement:
+
+```
+src/synthesis/
+├── index.ts          # Orchestrator with selectSynthesizer()
+├── gpt.ts            # GPT-5.2 implementation (existing)
+├── gemini.ts         # Gemini 3 Pro implementation (new)
+├── claude.ts         # Claude Sonnet 4.5 implementation (new)
+├── kimi.ts           # Kimi 2 via OpenRouter implementation (new)
+├── claims.ts         # Claim extraction (shared)
+└── types.ts          # SynthesisModel type and config (new)
+```
+
+Each model-specific file implements the same `SynthesizerFn` interface:
+
+```typescript
+type SynthesizerFn = (
+  claims: GroundedClaim[],
+  prompt: string,
+  config: PipelineConfig
+) => Promise<SynthesisResult>;
+```
+
+### Cost Comparison
+
+| Model | Est. Input Cost | Est. Output Cost | Notes |
+|-------|-----------------|------------------|-------|
+| GPT-5.2 | $1.75/1M tokens | $14.00/1M tokens | Highest quality |
+| Gemini 3 Flash | $0.50/1M tokens | $3.00/1M tokens | Most cost-effective (Flash for cost optimization) |
+| Claude Sonnet 4.5 | $3.00/1M tokens | $15.00/1M tokens | Strong reasoning |
+| Kimi 2 | $0.456/1M tokens | $1.84/1M tokens | Via OpenRouter |
+
+### Failure Handling
+
+| Failure | Behavior |
+|---------|----------|
+| API error | Retry 3x with backoff, then **FATAL** |
+| Parse error | Retry once with fix-JSON prompt, then **FATAL** |
+| Timeout | **FATAL** (synthesis is required) |
+
+Note: Unlike other stages, synthesis has no fallback - if the selected model fails, the pipeline cannot complete.
+
+---
+
 ## Future Phases
 
 - **Phase 1**: Web UI with React/Next.js, user accounts
@@ -1211,6 +1302,13 @@ SCRAPECREATORS_API_KEY=your_key_here
 ---
 
 ## Changelog
+
+### v2.3.0 (2025-12-31)
+- Added Synthesis Model Selection section (Section 15)
+- New CLI option: `--synthesis-model <model>`
+- Support for 4 synthesis models: GPT-5.2 (default), Gemini 3 Pro, Claude Sonnet 4.5, Kimi 2
+- Architecture follows established refinement model pattern
+- Updated cost estimation for synthesis model selection
 
 ### v2.2.0 (2025-12-30)
 - Added Prompt Refinement Phase section (Section 14)

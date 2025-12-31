@@ -20,6 +20,22 @@ export const InfographicStyleSchema = z.enum([
 export type InfographicStyle = z.infer<typeof InfographicStyleSchema>;
 
 /**
+ * Accent color options for infographics.
+ * These are pre-approved colors that work well on dark backgrounds
+ * and meet WCAG AA contrast requirements.
+ */
+export const AccentColorSchema = z.enum([
+  'lime',    // #a3e635 - tech, innovation, energy, growth
+  'cyan',    // #22d3ee - trust, clarity, data, systems
+  'coral',   // #fb7185 - people, warmth, healthcare, community
+  'amber',   // #fbbf24 - insights, warnings, finance, attention
+  'violet',  // #a78bfa - creative, AI/ML, future-focused, strategy
+  'sky',     // #38bdf8 - calm, enterprise, cloud, communication
+  'emerald', // #34d399 - sustainability, success, balance, wellness
+]);
+export type AccentColor = z.infer<typeof AccentColorSchema>;
+
+/**
  * Post style for multi-post generation
  */
 export const PostStyleSchema = z.enum(['series', 'variations']);
@@ -70,7 +86,14 @@ export const InfographicBriefSchema = z.object({
   /** Suggested visual style */
   suggestedStyle: InfographicStyleSchema,
 
-  /** Optional color scheme suggestion */
+  /**
+   * Accent color from brand palette.
+   * Selected by synthesis engine based on topic mood.
+   * If not provided, image generator will select based on content.
+   */
+  accentColor: AccentColorSchema.optional(),
+
+  /** Optional color scheme suggestion (deprecated, use accentColor) */
   colorScheme: z.string().optional(),
 });
 export type InfographicBrief = z.infer<typeof InfographicBriefSchema>;

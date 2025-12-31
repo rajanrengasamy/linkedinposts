@@ -1,7 +1,7 @@
 # LinkedIn Post Generator - Project TODO v2
 
-**Version**: 2.3
-**Last Updated**: 2025-12-30
+**Version**: 2.4
+**Last Updated**: 2025-12-31
 **PRD Reference**: `docs/PRD-v2.md`
 
 ---
@@ -1552,6 +1552,192 @@ Interactive prompt refinement that runs before data collection. LLM analyzes and
 
 ---
 
+## 19. Synthesis Model Selection
+
+Add multi-model support to the synthesis stage, allowing users to choose their preferred LLM for LinkedIn post generation. Follows the established pattern from refinement model selection.
+
+### 19.1 Type Definitions
+
+**File: `src/synthesis/types.ts`** (NEW)
+- [x] Define `SynthesisModel` type: `'gpt' | 'gemini' | 'claude' | 'kimi2'`
+- [x] Define `SYNTHESIS_MODELS` constant array for validation
+- [x] Define `SYNTHESIS_MODEL_IDS` mapping
+- [x] Define `SynthesizerFn` type
+- [x] Define `SynthesisOptions` interface
+- [x] Define `DEFAULT_SYNTHESIS_OPTIONS`
+- [x] Export all types from `src/synthesis/index.ts`
+
+**File: `src/types/index.ts`**
+- [x] Add `synthesisModel: SynthesisModel` to `PipelineConfig` interface
+- [x] Update `DEFAULT_CONFIG` with `synthesisModel: 'gpt'`
+- [x] Re-export synthesis types
+
+### 19.2 CLI Options
+
+**File: `src/cli/program.ts`**
+- [x] Add `--synthesis-model <model>` option with default 'gpt'
+- [x] Update `CommanderOptions` interface with `synthesisModel?: string`
+- [x] Update `isValidCommanderOptions()` validation
+- [x] Update `parseCliOptions()` to handle new option
+- [x] Add help examples for `--synthesis-model`
+
+### 19.3 Config Parsing
+
+**File: `src/config.ts`**
+- [x] Add `parseSynthesisModel(modelStr: string): SynthesisModel`
+- [x] Update `CliOptions` interface with `synthesisModel?: string`
+- [x] Update `buildConfig()` to parse synthesis model option
+- [x] Update `validateApiKeys()` for synthesis models:
+  - [x] Check ANTHROPIC_API_KEY when claude synthesis selected
+  - [x] Check OPENROUTER_API_KEY when kimi2 synthesis selected
+- [x] Update `ValidateApiKeysOptions` interface with `synthesisModel`
+- [x] Update `validateConfig()` and `requireValidConfig()` to include synthesisModel
+
+### 19.4 Model Implementations
+
+**File: `src/synthesis/gpt.ts`** (REFACTOR)
+- [x] Add `synthesizeWithGPT()` function implementing SynthesizerFn interface
+- [x] Keep GPT-specific API client and request handling
+- [x] Export `synthesizeWithGPT` as named export
+- [x] Import types from `./types.js`
+
+**File: `src/synthesis/gemini-synthesis.ts`** (NEW)
+- [x] Implement `synthesizeWithGemini(prompt, claims, options)`:
+  - [x] Model: `gemini-3-flash-preview` with ThinkingLevel.HIGH
+  - [x] Apply shared `SYSTEM_PROMPT` from prompts module
+  - [x] Use `buildSynthesisPrompt()` for prompt construction
+  - [x] Apply timeout with Promise.race
+  - [x] Retry with CRITICAL_RETRY_OPTIONS
+  - [x] Parse and validate response
+  - [x] Token usage tracking for cost estimation
+- [x] Export `calculateGeminiSynthesisCost()` for cost tracking
+
+**File: `src/synthesis/claude-synthesis.ts`** (NEW)
+- [x] Implement `synthesizeWithClaude(prompt, claims, options)`:
+  - [x] Singleton client pattern (`getAnthropicSynthesisClient()`)
+  - [x] Model: `claude-sonnet-4-5-20241022`
+  - [x] Apply shared `SYSTEM_PROMPT`
+  - [x] Apply timeout and retry handling
+  - [x] Parse and validate response
+  - [x] Actual token usage from API response
+- [x] Export `calculateClaudeSynthesisCost()` for cost tracking
+
+**File: `src/synthesis/kimi-synthesis.ts`** (NEW)
+- [x] Implement `synthesizeWithKimi(prompt, claims, options)`:
+  - [x] OpenRouter API via axios
+  - [x] Model: `moonshotai/kimi-k2-thinking`
+  - [x] Apply shared `SYSTEM_PROMPT`
+  - [x] Reasoning effort: medium
+  - [x] Apply timeout and retry handling
+  - [x] Parse and validate response
+- [x] Export `calculateKimiSynthesisCost()` for cost tracking
+
+### 19.5 Shared Prompt Module
+
+**File: `src/synthesis/prompts.ts`** (NEW - extract from gpt.ts)
+- [x] Move `SYSTEM_PROMPT` constant
+- [x] Move `DELIMITERS` constant
+- [x] Move `buildSynthesisPrompt()` function
+- [x] Move `buildMultiPostPrompt()` function
+- [x] Move `formatClaimsForPrompt()` function
+- [x] Move `estimatePromptTokens()` function
+- [x] Move prompt length constants (`MAX_PROMPT_LENGTH`, `MAX_CLAIM_LENGTH`, etc.)
+- [x] Move response parsing functions:
+  - [x] `parseSynthesisResponse()`
+  - [x] `parseMultiPostResponse()`
+  - [x] `parseWithRetry()`
+  - [x] `validateOutputConstraints()`
+  - [x] `convertMultiPostToSynthesisResult()`
+- [x] Export all for use by model implementations
+
+### 19.6 Main Orchestrator
+
+**File: `src/synthesis/index.ts`** (REFACTOR)
+- [x] Implement `selectSynthesizer(model)` with model routing
+- [x] Update main `synthesize()` function:
+  - [x] Get model from `config.synthesisModel ?? 'gpt'`
+  - [x] Call `selectSynthesizer()` to get appropriate function
+  - [x] Log which model is being used
+  - [x] Route to GPT synthesize for backward compatibility
+  - [x] Route to other models via SynthesizerFn interface
+- [x] Export all model-specific synthesizers for direct use
+- [x] Re-export types and prompts from submodules
+
+### 19.7 Cost Estimation Updates
+
+**File: `src/utils/cost.ts`**
+- [x] Add `SYNTHESIS_COSTS` constant with rates for each model
+- [x] Update `TokenUsage` interface with `synthesis` field including model
+- [x] Add `addSynthesis()` method to `CostTracker` class
+- [x] Update `calculateActualCost()` to use synthesis-specific costs
+
+### 19.8 Pipeline Integration
+
+**File: `src/cli/runPipeline.ts`**
+- [x] No changes needed - `synthesize()` handles model selection internally
+- [x] Model used is logged via `logInfo()` in orchestrator
+
+### 19.9 Tests
+
+**File: `tests/unit/synthesis-types.test.ts`** (NEW)
+- [ ] Test `SynthesisModel` type values
+- [ ] Test `SYNTHESIS_MODELS` array contents
+- [ ] Test `SYNTHESIS_MODEL_IDS` mapping
+
+**File: `tests/unit/config.test.ts`**
+- [ ] Add tests for `parseSynthesisModel()`:
+  - [ ] Valid model values (gpt, gemini, claude, kimi2)
+  - [ ] Invalid model rejection with warning
+  - [ ] Case insensitivity
+- [ ] Test `buildConfig()` with `--synthesis-model` option
+- [ ] Test API key validation for each synthesis model
+
+**File: `tests/unit/cli.test.ts`**
+- [ ] Test `--synthesis-model` option parsing
+- [ ] Test default value (gpt)
+- [ ] Test invalid value handling
+
+**File: `tests/unit/synthesis.test.ts`**
+- [ ] Test `selectSynthesizer()` returns correct function for each model
+- [ ] Test fallback to GPT for unknown model
+- [ ] Test orchestrator routes to correct synthesizer
+
+**File: `tests/unit/synthesis-gemini.test.ts`** (NEW)
+- [ ] Test `synthesizeWithGemini()` with mocked Gemini client
+- [ ] Test timeout handling
+- [ ] Test retry behavior
+- [ ] Test response parsing
+
+**File: `tests/unit/synthesis-claude.test.ts`** (NEW)
+- [ ] Test `synthesizeWithClaude()` with mocked Anthropic client
+- [ ] Test timeout handling
+- [ ] Test retry behavior
+- [ ] Test response parsing
+
+**File: `tests/unit/synthesis-kimi.test.ts`** (NEW)
+- [ ] Test `synthesizeWithKimi()` with mocked OpenRouter client
+- [ ] Test timeout handling
+- [ ] Test retry behavior
+- [ ] Test response parsing
+
+**File: `tests/unit/cost.test.ts`**
+- [ ] Add tests for synthesis cost estimation per model
+- [ ] Test cost calculation with different synthesis models
+
+**File: `tests/mocks/`**
+- [ ] Create `gemini_synthesis_response.json` fixture
+- [ ] Create `claude_synthesis_response.json` fixture
+- [ ] Create `kimi_synthesis_response.json` fixture
+
+### 19.10 Documentation
+
+- [x] Update `docs/HowTo.md` with `--synthesis-model` examples
+- [x] Add model comparison table to HowTo.md
+- [x] Update CLI Options Reference table
+- [ ] Update README with new CLI option (README not yet written)
+
+---
+
 ## API Documentation Links
 
 | Service | Documentation |
@@ -1567,6 +1753,12 @@ Interactive prompt refinement that runs before data collection. LLM analyzes and
 ---
 
 ## Changelog
+
+### v2.4.0 (2025-12-31)
+- Added Section 19: Synthesis Model Selection
+- Multi-model support for synthesis stage (GPT, Gemini, Claude, Kimi2)
+- Follows established refinement model pattern
+- Comprehensive TODO items for types, CLI, config, implementations, tests, docs
 
 ### v2.3.0 (2025-12-30)
 - Added Section 18: Prompt Refinement Phase

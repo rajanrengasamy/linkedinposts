@@ -6,7 +6,10 @@
 
 /** Patterns that could be used for prompt injection attacks */
 export const INJECTION_PATTERNS = [
-  /<<<.*>>>/gi,
+  // MAJ-5: Strengthened delimiter patterns to catch partial delimiters
+  /<<<[^>]*>>?/gi,  // Catch partial closing: <<<foo>, <<<foo>>
+  /<<?<[^>]*>>>/gi, // Catch partial opening: <<foo>>>, <foo>>>
+  /<<<.*>>>/gi,     // Original: full delimiter <<<foo>>>
   /\{%.*%\}/gi,
   /\{\{.*\}\}/gi,
   /<script[^>]*>.*<\/script>/gi,

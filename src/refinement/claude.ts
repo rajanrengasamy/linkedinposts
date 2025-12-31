@@ -30,7 +30,7 @@ import type { PromptAnalysis, RefinementConfig } from './types.js';
  * Claude model for prompt analysis.
  * Using Claude Sonnet 4.5 for balanced reasoning and speed.
  */
-const CLAUDE_MODEL = 'claude-sonnet-4-5-20241022';
+const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
 
 /**
  * Maximum tokens for response.

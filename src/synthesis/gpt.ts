@@ -23,7 +23,8 @@ import { getApiKey } from '../config.js';
 import { withRetry, CRITICAL_RETRY_OPTIONS, TimeoutError } from '../utils/retry.js';
 import { createSafeError } from '../utils/sanitization.js';
 import { logVerbose, logWarning } from '../utils/logger.js';
-import { STAGE_TIMEOUT_MS } from '../types/index.js';
+import { STAGE_TIMEOUT_MS, DEFAULT_CONFIG } from '../types/index.js';
+import type { SynthesizerFn, SynthesisOptions } from './types.js';
 
 // ============================================
 // Model Configuration
@@ -1506,6 +1507,39 @@ export function buildSourceReferences(
     usedInPost: usedUrls.has(item.sourceUrl),
   }));
 }
+
+// ============================================
+// SynthesizerFn Adapter (CRIT-5/CRIT-6 Fix)
+// ============================================
+
+/**
+ * Synthesize LinkedIn post using GPT-5.2 (SynthesizerFn interface).
+ *
+ * This is the standardized interface that all synthesizers implement.
+ * Wraps the internal `synthesize()` function with the correct signature.
+ *
+ * @param prompt - The user's original topic/prompt
+ * @param claims - Array of grounded claims with source URLs
+ * @param options - Synthesis options (postCount, postStyle, etc.)
+ * @returns Promise resolving to SynthesisResult
+ */
+export const synthesizeWithGPT: SynthesizerFn = async (
+  prompt: string,
+  claims: GroundedClaim[],
+  options: SynthesisOptions
+): Promise<SynthesisResult> => {
+  // Build PipelineConfig from SynthesisOptions
+  const config: PipelineConfig = {
+    ...DEFAULT_CONFIG,
+    postCount: options.postCount,
+    postStyle: options.postStyle,
+    verbose: options.verbose ?? false,
+    timeoutSeconds: options.timeoutMs ? Math.floor(options.timeoutMs / 1000) : DEFAULT_CONFIG.timeoutSeconds,
+  };
+
+  // Call internal synthesize with correct argument order
+  return synthesize(claims, prompt, config);
+};
 
 // ============================================
 // Exports

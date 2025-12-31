@@ -12,14 +12,15 @@
 4. [Source Options](#source-options)
 5. [Quality Profiles](#quality-profiles)
 6. [Scoring Models](#scoring-models)
-7. [Stage Control](#stage-control)
-8. [Multi-Post Generation](#multi-post-generation)
-9. [Resume from Scored Data](#resume-from-scored-data)
-10. [Output Options](#output-options)
-11. [Performance Options](#performance-options)
-12. [Debug Options](#debug-options)
-13. [Common Workflows](#common-workflows)
-14. [All CLI Options Reference](#all-cli-options-reference)
+7. [Synthesis Models](#synthesis-models)
+8. [Stage Control](#stage-control)
+9. [Multi-Post Generation](#multi-post-generation)
+10. [Resume from Scored Data](#resume-from-scored-data)
+11. [Output Options](#output-options)
+12. [Performance Options](#performance-options)
+13. [Debug Options](#debug-options)
+14. [Common Workflows](#common-workflows)
+15. [All CLI Options Reference](#all-cli-options-reference)
 
 ---
 
@@ -216,6 +217,54 @@ Requires `OPENROUTER_API_KEY` in .env file.
 ```bash
 npx tsx src/index.ts "AI trends" --scoring-model kimi2
 ```
+
+---
+
+## Synthesis Models
+
+Choose which LLM generates your LinkedIn post. Default is GPT-5.2.
+
+### GPT-5.2 (Default)
+Highest quality synthesis with advanced reasoning.
+```bash
+npx tsx src/index.ts "AI trends" --synthesis-model gpt
+```
+
+### Gemini 3 Flash
+Fast, cost-effective synthesis.
+```bash
+npx tsx src/index.ts "AI trends" --synthesis-model gemini
+```
+
+### Claude Sonnet 4.5
+Balanced quality and cost.
+```bash
+npx tsx src/index.ts "AI trends" --synthesis-model claude
+```
+
+### Kimi K2 (via OpenRouter)
+Deep reasoning synthesis. Requires `OPENROUTER_API_KEY`.
+```bash
+npx tsx src/index.ts "AI trends" --synthesis-model kimi2
+```
+
+### Model Comparison
+
+| Model | Option | Provider | Speed | Cost | Use Case |
+|-------|--------|----------|-------|------|----------|
+| GPT-5.2 | `gpt` (default) | OpenAI | Medium | $$$ | Best quality |
+| Gemini 3 Flash | `gemini` | Google | Fast | $ | Quick drafts |
+| Claude Sonnet 4.5 | `claude` | Anthropic | Medium | $$ | Balanced |
+| Kimi K2 | `kimi2` | OpenRouter | Slow | $ | Deep reasoning |
+
+### API Key Requirements
+
+| Model | Required Key |
+|-------|-------------|
+| gpt | OPENAI_API_KEY |
+| gemini | GOOGLE_AI_API_KEY |
+| claude | ANTHROPIC_API_KEY |
+| kimi2 | OPENROUTER_API_KEY |
 
 ---
 
@@ -484,6 +533,7 @@ npx tsx src/index.ts "AI trends" --from-scored output/2025-12-30_23-47-46/scored
 | `--save-raw` | false | Save raw API responses |
 | `--image-resolution <res>` | `2k` | Image resolution: 2k, 4k |
 | `--scoring-model <model>` | `gemini` | Scoring: gemini, kimi2 |
+| `--synthesis-model <model>` | `gpt` | Synthesis: gpt, gemini, claude, kimi2 |
 | `--timeout <seconds>` | `600` | Pipeline timeout |
 | `--print-cost-estimate` | false | Print cost and exit |
 | `--verbose` | false | Show detailed progress |
@@ -507,10 +557,10 @@ OPENAI_API_KEY=your_key
 # Optional (for social sources)
 SCRAPECREATORS_API_KEY=your_key
 
-# Optional (for Claude refinement model)
+# Optional (for Claude refinement/synthesis models)
 ANTHROPIC_API_KEY=your_key
 
-# Optional (for KIMI 2 scoring/refinement)
+# Optional (for KIMI 2 scoring/refinement/synthesis)
 OPENROUTER_API_KEY=your_key
 ```
 

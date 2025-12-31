@@ -87,6 +87,25 @@ export type {
 export { DEFAULT_REFINEMENT_CONFIG } from '../refinement/types.js';
 
 // ============================================
+// Re-export Synthesis types
+// ============================================
+
+export type {
+  SynthesisModel,
+  SynthesisOptions,
+  SynthesizerFn,
+} from '../synthesis/types.js';
+
+export {
+  SYNTHESIS_MODELS,
+  SYNTHESIS_MODEL_IDS,
+  DEFAULT_SYNTHESIS_OPTIONS,
+} from '../synthesis/types.js';
+
+// Import SynthesisModel for use in PipelineConfig interface
+import type { SynthesisModel } from '../synthesis/types.js';
+
+// ============================================
 // Pipeline Configuration
 // ============================================
 
@@ -159,6 +178,9 @@ export interface PipelineConfig {
   /** Scoring model to use: 'gemini' (default) or 'kimi2' (OpenRouter) */
   scoringModel: ScoringModel;
 
+  /** Synthesis model to use: 'gpt' (default), 'gemini', 'claude', or 'kimi2' */
+  synthesisModel: SynthesisModel;
+
   /** Output directory path */
   outputDir: string;
 
@@ -203,6 +225,7 @@ export const DEFAULT_CONFIG: PipelineConfig = {
   timeoutSeconds: 600,
   imageResolution: '2k',
   scoringModel: 'gemini',
+  synthesisModel: 'gpt',
   outputDir: './output',
   saveRaw: false,
   verbose: false,

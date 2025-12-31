@@ -6,7 +6,7 @@
  */
 
 import type { CostBreakdown } from '../schemas/index.js';
-import type { PipelineConfig, ImageResolution } from '../types/index.js';
+import type { PipelineConfig, ImageResolution, SynthesisModel } from '../types/index.js';
 import { createEmptyCostBreakdown } from '../schemas/index.js';
 
 // ============================================
@@ -50,6 +50,29 @@ export const IMAGE_COSTS: Record<ImageResolution, number> = {
   '2k': 0.134, // Nano Banana Pro 2K (~1120 tokens)
   '4k': 0.24, // Nano Banana Pro 4K (~2000 tokens)
 };
+
+/**
+ * Token costs for synthesis models (per million tokens)
+ * These are specific to synthesis which may use different models than scoring
+ */
+export const SYNTHESIS_COSTS = {
+  gpt: {
+    inputPerMillion: 10.0,   // GPT-5.2 input
+    outputPerMillion: 30.0,  // GPT-5.2 output
+  },
+  gemini: {
+    inputPerMillion: 0.5,    // Gemini 3 Flash input
+    outputPerMillion: 3.0,   // Gemini 3 Flash output
+  },
+  claude: {
+    inputPerMillion: 3.0,    // Claude Sonnet 4.5 input
+    outputPerMillion: 15.0,  // Claude Sonnet 4.5 output
+  },
+  kimi2: {
+    inputPerMillion: 0.456,  // KIMI K2 input via OpenRouter
+    outputPerMillion: 1.84,  // KIMI K2 output via OpenRouter
+  },
+} as const;
 
 // ============================================
 // Token Estimation
@@ -236,6 +259,8 @@ export interface TokenUsage {
   /** KIMI K2 token usage (via OpenRouter) */
   kimi2?: { inputTokens: number; outputTokens: number };
   openai?: { inputTokens: number; outputTokens: number };
+  /** Synthesis token usage (tracks which model was used) */
+  synthesis?: { inputTokens: number; outputTokens: number; model: SynthesisModel };
   imageGenerated?: boolean;
   imageResolution?: ImageResolution;
 }
@@ -285,6 +310,16 @@ export function calculateActualCost(usage: TokenUsage): CostBreakdown {
       usage.openai.inputTokens,
       usage.openai.outputTokens,
       TOKEN_COSTS.openai
+    );
+  }
+
+  // Synthesis costs (separate from OpenAI scoring)
+  if (usage.synthesis) {
+    const pricing = SYNTHESIS_COSTS[usage.synthesis.model];
+    openai += calculateTokenCost(
+      usage.synthesis.inputTokens,
+      usage.synthesis.outputTokens,
+      pricing
     );
   }
 
@@ -352,6 +387,19 @@ export class CostTracker {
     }
     this.usage.openai.inputTokens += inputTokens;
     this.usage.openai.outputTokens += outputTokens;
+  }
+
+  /**
+   * Add synthesis token usage
+   */
+  addSynthesis(inputTokens: number, outputTokens: number, model: SynthesisModel): void {
+    if (!this.usage.synthesis) {
+      this.usage.synthesis = { inputTokens: 0, outputTokens: 0, model };
+    }
+    this.usage.synthesis.inputTokens += inputTokens;
+    this.usage.synthesis.outputTokens += outputTokens;
+    // Update model if different (last model wins)
+    this.usage.synthesis.model = model;
   }
 
   /**

@@ -8,6 +8,8 @@
 import 'dotenv/config';
 import type { PipelineConfig, SourceOption, QualityProfile, ScoringModel } from './types/index.js';
 import type { RefinementModel, RefinementConfig } from './refinement/types.js';
+import type { SynthesisModel } from './synthesis/types.js';
+import { SYNTHESIS_MODELS } from './synthesis/types.js';
 import {
   DEFAULT_CONFIG,
   QUALITY_PROFILES,
@@ -90,6 +92,7 @@ export interface ValidateApiKeysOptions {
   sources: SourceOption[];
   scoringModel?: ScoringModel;
   refinementModel?: RefinementModel;
+  synthesisModel?: SynthesisModel;
 }
 
 /**
@@ -162,6 +165,23 @@ export function validateApiKeys(options: SourceOption[] | ValidateApiKeysOptions
     }
   }
 
+  // Check for synthesis model API keys
+  const synthesisModel = Array.isArray(options) ? 'gpt' : (options.synthesisModel ?? 'gpt');
+
+  // Claude synthesis requires ANTHROPIC_API_KEY (only add if not already checked for refinement)
+  if (synthesisModel === 'claude' && refinementModel !== 'claude') {
+    if (!hasApiKey('ANTHROPIC_API_KEY')) {
+      missing.push(ENV_KEYS.ANTHROPIC_API_KEY);
+    }
+  }
+
+  // Kimi2 synthesis requires OPENROUTER_API_KEY (only add if not already checked)
+  if (synthesisModel === 'kimi2' && scoringModel !== 'kimi2' && refinementModel !== 'kimi2') {
+    if (!hasApiKey('OPENROUTER_API_KEY')) {
+      missing.push(ENV_KEYS.OPENROUTER_API_KEY);
+    }
+  }
+
   return {
     valid: missing.length === 0,
     missing,
@@ -210,6 +230,7 @@ export interface CliOptions {
   saveRaw?: boolean;
   imageResolution?: string;
   scoringModel?: string;
+  synthesisModel?: string;
   skipRefinement?: boolean;
   refinementModel?: string;
   postCount?: string;
@@ -318,6 +339,29 @@ export function parseRefinementModel(modelStr: string | undefined): RefinementMo
 }
 
 /**
+ * Parse synthesis model from string, defaulting to 'gpt'.
+ * Warns about invalid synthesis model values.
+ *
+ * MAJ-10: Fixed type assertion - now validates model is in SYNTHESIS_MODELS array
+ * before asserting the type, using readonly string[] comparison.
+ *
+ * @param modelStr - Model string from CLI option
+ * @returns Valid SynthesisModel
+ */
+export function parseSynthesisModel(modelStr: string | undefined): SynthesisModel {
+  if (!modelStr) return 'gpt';
+  const model = modelStr.toLowerCase();
+  // MAJ-10: Cast SYNTHESIS_MODELS to readonly string[] for safe comparison
+  if ((SYNTHESIS_MODELS as readonly string[]).includes(model)) {
+    return model as SynthesisModel;
+  }
+  logWarning(
+    `Invalid synthesis model '${modelStr}' ignored. Using 'gpt'. Valid options: ${SYNTHESIS_MODELS.join(', ')}`
+  );
+  return 'gpt';
+}
+
+/**
  * Build a complete PipelineConfig from CLI options.
  *
  * Merging order (later overrides earlier):
@@ -390,6 +434,10 @@ export function buildConfig(options: CliOptions): PipelineConfig {
 
   if (options.scoringModel !== undefined) {
     config.scoringModel = parseScoringModel(options.scoringModel);
+  }
+
+  if (options.synthesisModel !== undefined) {
+    config.synthesisModel = parseSynthesisModel(options.synthesisModel);
   }
 
   // Build refinement config
@@ -478,6 +526,7 @@ export function validateConfig(config: PipelineConfig): ApiKeyValidationResult {
     sources: config.sources,
     scoringModel: config.scoringModel,
     refinementModel: config.refinement?.model,
+    synthesisModel: config.synthesisModel,
   });
 }
 
@@ -490,6 +539,7 @@ export function requireValidConfig(config: PipelineConfig): void {
     sources: config.sources,
     scoringModel: config.scoringModel,
     refinementModel: config.refinement?.model,
+    synthesisModel: config.synthesisModel,
   });
 }
 

@@ -56,8 +56,132 @@ const MAX_COLOR_SCHEME_LENGTH = 50;
 
 /**
  * Default color scheme when not specified.
+ * Now references the brand palette for consistency.
  */
-const DEFAULT_COLOR_SCHEME = 'professional blue and white';
+const DEFAULT_COLOR_SCHEME = 'lime accent on dark background';
+
+// ============================================
+// Brand Template
+// ============================================
+
+/**
+ * Friendly professional accent color palette.
+ * AI selects ONE primary accent per infographic based on topic mood.
+ * All colors are high-contrast against dark backgrounds and WCAG AA compliant.
+ */
+export const ACCENT_PALETTE = {
+  lime: { hex: '#a3e635', bestFor: 'tech, innovation, energy, growth' },
+  cyan: { hex: '#22d3ee', bestFor: 'trust, clarity, data, systems' },
+  coral: { hex: '#fb7185', bestFor: 'people, warmth, healthcare, community' },
+  amber: { hex: '#fbbf24', bestFor: 'insights, warnings, finance, attention' },
+  violet: { hex: '#a78bfa', bestFor: 'creative, AI/ML, future-focused, strategy' },
+  sky: { hex: '#38bdf8', bestFor: 'calm, enterprise, cloud, communication' },
+  emerald: { hex: '#34d399', bestFor: 'sustainability, success, balance, wellness' },
+} as const;
+
+/**
+ * Brand template that ensures visual consistency across all generated infographics.
+ *
+ * This template defines:
+ * - LOCKED elements: Must be consistent in every infographic
+ * - FLEXIBLE elements: Can vary based on content/topic
+ * - ACCENT PALETTE: Pre-approved colors that work on dark backgrounds
+ *
+ * Reference: Dark charcoal background with high-contrast accent colors,
+ * line-art icons, clean typography, and generous whitespace.
+ */
+export const BRAND_TEMPLATE = `
+=== BRAND IDENTITY (Apply to ALL infographics) ===
+
+LOCKED ELEMENTS (Non-negotiable):
+
+Background:
+- Solid dark charcoal: #1e1e1e to #252525 (NO gradients, NO patterns)
+- This is the foundation of brand consistency - never deviate
+
+Frame/Border:
+- Subtle rounded rectangle border around content area
+- Border: 1-2px stroke at 15-20% white opacity (#ffffff with alpha)
+- Corner radius: 20-30px
+- Creates cohesive "card" feel without heaviness
+
+Typography:
+- Font family: Geometric sans-serif (Inter, SF Pro, Outfit style)
+- Title: BOLD weight, white (#ffffff) or accent color for emphasis
+- Body text: Regular weight, white (#ffffff)
+- All text must pass WCAG AA contrast (4.5:1 minimum)
+- Maximum 3 font sizes: title (large), body (medium), caption (small)
+
+Icon Style:
+- LINE-ART ONLY: Stroke weight 2-3px, NO fills
+- Color: Primary accent color (from palette below)
+- Simple, geometric, recognizable shapes
+- Icons should be topic-appropriate but follow this style consistently
+
+Whitespace:
+- Minimum 8% margin on all edges (safe zone)
+- Generous padding between sections
+- Content must breathe - avoid cramped layouts
+- 30-40% of canvas should be negative space
+
+Title Position:
+- Top 15-25% of canvas, centered horizontally
+- Must be readable at thumbnail size (100px preview)
+- Largest text element on the canvas
+
+ACCENT COLOR PALETTE (Select ONE based on topic mood):
+
+| Color   | Hex     | Best For                                    |
+|---------|---------|---------------------------------------------|
+| Lime    | #a3e635 | Tech, innovation, energy, growth            |
+| Cyan    | #22d3ee | Trust, clarity, data, systems               |
+| Coral   | #fb7185 | People, warmth, healthcare, community       |
+| Amber   | #fbbf24 | Insights, warnings, finance, attention      |
+| Violet  | #a78bfa | Creative, AI/ML, future-focused, strategy   |
+| Sky     | #38bdf8 | Calm, enterprise, cloud, communication      |
+| Emerald | #34d399 | Sustainability, success, balance, wellness  |
+
+Color Application Rules:
+- Primary accent: Headers, icons, key callouts, emphasis elements
+- White (#ffffff): Body text, diagram elements, secondary labels
+- Dark accent variants (20% opacity): Subtle backgrounds for diagram boxes if needed
+- NEVER use multiple accent colors - pick ONE and commit
+
+FLEXIBLE ELEMENTS (Creative freedom within guidelines):
+
+Layout Structure:
+- 2-5 content sections depending on information density
+- Can use: horizontal rows, vertical columns, asymmetric grids, single hero visual
+- Adapt layout to best serve the content
+
+Visualizations (FULL CREATIVE FREEDOM):
+- Choose ANY visualization type that best represents the content:
+  * Flowcharts and process diagrams
+  * Comparison tables and matrices
+  * Pie/donut charts and bar graphs
+  * Mind maps and relationship diagrams
+  * Venn diagrams and overlapping concepts
+  * Timelines and process wheels
+  * Icon grids and feature lists
+  * Statistics callouts and number highlights
+  * Before/after comparisons
+  * Quote blocks and testimonial layouts
+  * Funnels and hierarchies
+  * Checklists and step-by-step guides
+- Visualization elements: White with black/dark text for boxes, accent color for highlights
+- Keep visualizations simple and readable at small sizes
+
+Icon Selection:
+- Choose icons appropriate to the topic
+- Must follow line-art style (stroke only, no fill)
+- Use accent color for icon strokes
+
+Section Count:
+- 2-5 sections based on content complexity
+- Each section should convey ONE clear idea
+
+=== END BRAND IDENTITY ===
+`;
 
 /**
  * Maximum API prompt length to prevent excessive costs
@@ -229,38 +353,65 @@ export function getImageClient(): GoogleGenAI {
  *
  * These provide targeted guidance to the image generation model
  * based on the suggested style from the synthesis stage.
+ *
+ * All styles inherit from BRAND_TEMPLATE (dark background, line-art icons,
+ * accent color palette, etc.) but add style-specific composition rules.
  */
 const STYLE_INSTRUCTIONS: Record<InfographicStyle, string> = {
-  minimal: `Style Guidelines (Minimal):
-- WHITESPACE: Minimum 40% of canvas should be empty/negative space
-- Use generous whitespace and clean layouts
-- Simple, elegant icons where appropriate (max 1-2 icons)
-- Limited color palette (2-3 colors max)
-- Focus on typography and hierarchy
-- Avoid clutter - less is more
-- Sans-serif fonts for modern feel
-- Content should breathe - no cramped sections`,
+  minimal: `Style Guidelines (Minimal - within brand template):
+COMPOSITION:
+- WHITESPACE: 40-50% of canvas should be empty/negative space
+- Maximum 2-3 content sections
+- Simple, elegant line-art icons (max 1-2 icons total)
+- Focus on typography hierarchy as primary visual interest
+- Content should breathe - generous padding everywhere
 
-  'data-heavy': `Style Guidelines (Data-Heavy):
-- ONE main chart or visualization only (not multiple competing charts)
-- Maximum 3-4 data points displayed - focus on the most impactful
-- Include charts, graphs, or statistical callouts
-- Use number visualizations prominently
-- Infographic-style data representations
-- Clear data labels and annotations (large enough to read)
-- Comparison visuals where relevant
-- Percentage bars, pie charts, or trend lines
-- Numbers should be the visual hero - make them large and bold`,
+VISUAL APPROACH:
+- Let the dark background do the heavy lifting
+- Accent color used sparingly for maximum impact
+- One key visual element OR pure typography
+- Avoid any visual clutter - less is more
+- Clean geometric shapes if any decoration needed`,
 
-  'quote-focused': `Style Guidelines (Quote-Focused):
-- QUOTE SPACE: Allocate 60% or more of canvas to the quote text
-- Large, prominent quote text as centerpiece
-- Elegant quotation marks or decorative elements
-- Clear author attribution styling (smaller but visible)
-- Typography-driven design - the quote IS the visual
-- Complementary imagery that supports the quote (subtle, not competing)
-- Inspirational or professional tone
-- Background should recede, quote should dominate`,
+  'data-heavy': `Style Guidelines (Data-Heavy - within brand template):
+COMPOSITION:
+- ONE primary data visualization as the hero element
+- Maximum 3-4 data points displayed - focus on most impactful
+- Supporting line-art icons to complement (not compete with) data
+- Clear visual hierarchy: Title > Data Viz > Supporting text
+
+VISUALIZATION OPTIONS (choose ONE that fits content):
+- Bar/column charts with accent color bars on dark background
+- Donut/pie charts with accent color segments
+- Statistics callouts with large numbers in accent color
+- Comparison layouts (side-by-side or before/after)
+- Progress indicators or percentage visualizations
+- Trend lines or simple line graphs
+
+DATA PRESENTATION:
+- Numbers should be LARGE and in accent color
+- Labels in white, clear and readable
+- Data viz elements use white fills with dark text OR accent outlines
+- Keep it simple - complexity kills readability`,
+
+  'quote-focused': `Style Guidelines (Quote-Focused - within brand template):
+COMPOSITION:
+- Quote text occupies 50-60% of visual weight
+- Quote in accent color OR white with accent quotation marks
+- Author attribution smaller, in white, clearly positioned
+- Minimal supporting elements - the quote IS the design
+
+VISUAL APPROACH:
+- Large elegant quotation marks in accent color (optional)
+- Quote text centered or left-aligned with clear hierarchy
+- Optional: subtle line-art icon representing the topic
+- Optional: simple geometric accent shapes
+- Background remains solid dark - no competing elements
+
+TYPOGRAPHY EMPHASIS:
+- Quote text should be the largest element after title
+- Consider italics or different weight for quote vs. attribution
+- Ensure quote is fully readable at thumbnail size`,
 };
 
 // ============================================
@@ -321,76 +472,80 @@ export function buildInfographicPrompt(
     keyPointsSection = sanitizedKeyPoints.join('\n');
   }
 
-  // Sanitize color scheme or use default
-  // Handle edge case where colorScheme is whitespace-only or sanitizes to empty
-  const sanitizedColorScheme = brief.colorScheme?.trim()
-    ? sanitizePromptContent(brief.colorScheme.trim(), MAX_COLOR_SCHEME_LENGTH)
-    : '';
-  const colorScheme = sanitizedColorScheme.trim() || DEFAULT_COLOR_SCHEME;
+  // Determine accent color - prefer explicit accentColor, fall back to colorScheme hint
+  let accentColorDirective: string;
+  if (brief.accentColor && ACCENT_PALETTE[brief.accentColor]) {
+    // Synthesis engine selected a specific accent color - use it
+    const colorInfo = ACCENT_PALETTE[brief.accentColor];
+    accentColorDirective = `ACCENT COLOR (MANDATORY - DO NOT CHANGE):
+Use ${brief.accentColor.toUpperCase()} (${colorInfo.hex}) as the ONLY accent color.
+- Headers: ${colorInfo.hex}
+- Icons: ${colorInfo.hex} stroke
+- Highlights/emphasis: ${colorInfo.hex}
+- DO NOT substitute any other color`;
+    logVerbose(`Using specified accent color: ${brief.accentColor} (${colorInfo.hex})`);
+  } else {
+    // No specific color selected - let image model choose from palette
+    const colorHint = brief.colorScheme?.trim()
+      ? sanitizePromptContent(brief.colorScheme.trim(), MAX_COLOR_SCHEME_LENGTH)
+      : '';
+    accentColorDirective = colorHint
+      ? `Color Mood Hint: ${colorHint} (select appropriate accent from brand palette)`
+      : '(Select accent color from brand palette based on topic)';
+  }
 
   // Get style-specific instructions
   const styleInstructions = STYLE_INSTRUCTIONS[brief.suggestedStyle];
 
-  // Build the prompt with structured sections
-  const prompt = `Create a professional infographic for LinkedIn:
+  // Build the prompt with brand template first, then content
+  const prompt = `Create a professional infographic for LinkedIn.
+
+${BRAND_TEMPLATE}
+
+=== CONTENT FOR THIS INFOGRAPHIC ===
 
 Title: ${sanitizedTitle}
 
-Key Points:
+Key Points to Visualize:
 ${keyPointsSection}
+
+Suggested Style: ${brief.suggestedStyle}
+
+${accentColorDirective}
 
 ${styleInstructions}
 
-Color Scheme: ${colorScheme}
-Color Application: Use 60% primary color, 30% secondary color, 10% neutral/accent. Primary dominates background or main elements, secondary for supporting elements, neutral for text and fine details.
+=== TECHNICAL REQUIREMENTS ===
 
-Requirements:
-- Clean, modern professional design
-- Legible text (double-check all spelling)
-- High visual hierarchy - title prominent
-- Data visualization where appropriate
-- Suitable for LinkedIn sharing
-- Professional quality output
-- Resolution: ${imageSize}
+Resolution: ${imageSize}
 
-Composition Guidelines:
-- Title must be in the TOP 20-30% of the image
-- Maintain 5% margins on all edges (safe zone)
-- Use rule of thirds for element placement
-- Visual flow: top-to-bottom, left-to-right reading order
-- Design must work as a square crop (center-weighted)
-
-Typography Specification:
-- Title: BOLD weight, HIGH CONTRAST against background, minimum 5% of image height
-- All text must have 4.5:1 contrast ratio minimum (WCAG AA)
-- Use maximum 3 font sizes total (title, body, caption)
-- Sans-serif fonts only for clarity
-- No decorative or script fonts for body text
-
-Mobile-First Design:
+Mobile-First Validation:
 - 70%+ of LinkedIn views are on mobile devices
 - Text must be readable at thumbnail size (100px preview)
 - Key message visible without zooming
 - No fine details that disappear at small sizes
-- Test: Would this be legible on a phone screen?
 
-AVOID (Negative Prompts):
+ABSOLUTE RESTRICTIONS (Negative Prompts):
+- NO light or white backgrounds (brand requires dark charcoal)
+- NO gradient backgrounds (solid color only)
+- NO filled icons (line-art only)
+- NO multiple accent colors (one accent color per infographic)
 - NO stock imagery or generic business photos
-- NO busy or cluttered backgrounds
+- NO busy or cluttered compositions
 - NO small or illegible text
-- NO gradients overlapping text areas
-- NO more than 5 visual elements total
 - NO clip art or cartoon graphics
 - NO generic corporate imagery (handshakes, globes, arrows)
-- NO logos or brand marks
-- NO extra text beyond title and key points
+- NO logos, watermarks, or brand marks
 - NO decorative borders that compete with content
+- NO more than 5 major visual elements
 
-Important:
-- Text must be crisp and readable
-- Balanced composition
-- Corporate/professional aesthetic
-- No watermarks or artifacts`;
+Final Check:
+- Dark charcoal background (#1e1e1e to #252525)? ✓
+- One accent color from palette? ✓
+- Line-art icons only? ✓
+- Subtle rounded border frame? ✓
+- Title prominent and readable? ✓
+- Content breathes with whitespace? ✓`;
 
   // Validate prompt length (MAJ-2)
   if (prompt.length > MAX_API_PROMPT_LENGTH) {
@@ -787,3 +942,5 @@ export {
   extractStatusCode,
   getStatusCodeMessage,
 };
+
+// Note: BRAND_TEMPLATE and ACCENT_PALETTE are exported inline with their declarations

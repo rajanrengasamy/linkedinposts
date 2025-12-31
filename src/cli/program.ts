@@ -64,6 +64,7 @@ export function createProgram(): Command {
 
     // Model Selection
     .option('--scoring-model <model>', 'Scoring model: gemini|kimi2', 'gemini')
+    .option('--synthesis-model <model>', 'Synthesis model: gpt|gemini|claude|kimi2', 'gpt')
 
     // Prompt Refinement
     .option('--skip-refinement', 'Skip prompt refinement phase')
@@ -118,6 +119,12 @@ Examples:
   # Generate 3-part series for deep-dive topic
   $ npx tsx src/index.ts "AI trends" --post-count 3 --post-style series
 
+  # Use Gemini for faster, cheaper synthesis
+  $ npx tsx src/index.ts "AI trends" --synthesis-model gemini
+
+  # Use Claude for balanced quality
+  $ npx tsx src/index.ts "AI trends" --synthesis-model claude
+
   # Resume from previous run's scored data
   $ npx tsx src/index.ts "AI trends" --from-scored output/2025-12-30/scored_data.json
 
@@ -154,6 +161,7 @@ interface CommanderOptions {
   saveRaw?: boolean;
   imageResolution?: string;
   scoringModel?: string;
+  synthesisModel?: string;
   skipRefinement?: boolean;
   refinementModel?: string;
   postCount?: string;
@@ -208,6 +216,7 @@ function isValidCommanderOptions(opts: Record<string, unknown>): boolean {
     boolOrUndef(opts.saveRaw) &&
     stringOrUndef(opts.imageResolution) &&
     stringOrUndef(opts.scoringModel) &&
+    stringOrUndef(opts.synthesisModel) &&
     boolOrUndef(opts.skipRefinement) &&
     stringOrUndef(opts.refinementModel) &&
     stringOrUndef(opts.postCount) &&
@@ -273,6 +282,7 @@ export function parseCliOptions(
     saveRaw: commanderOpts.saveRaw,
     imageResolution: commanderOpts.imageResolution,
     scoringModel: commanderOpts.scoringModel,
+    synthesisModel: commanderOpts.synthesisModel,
     skipRefinement: commanderOpts.skipRefinement,
     refinementModel: commanderOpts.refinementModel,
     postCount: commanderOpts.postCount,

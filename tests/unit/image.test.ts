@@ -189,16 +189,17 @@ describe('buildInfographicPrompt', () => {
     const brief = createMockBrief({ colorScheme: '' });
     const prompt = buildInfographicPrompt(brief, '1080x1080');
 
-    // Empty string should fall back to default
-    expect(prompt).toMatch(/professional.*blue|blue.*white/i);
+    // Empty string should fall back to brand palette selection
+    // The brand template includes the ACCENT_PALETTE with lime, cyan, coral, etc.
+    expect(prompt).toMatch(/Select accent color from brand palette/i);
   });
 
   it('should use default colorScheme for whitespace-only string', () => {
     const brief = createMockBrief({ colorScheme: '   ' });
     const prompt = buildInfographicPrompt(brief, '1080x1080');
 
-    // Whitespace-only should fall back to default
-    expect(prompt).toMatch(/professional.*blue|blue.*white/i);
+    // Whitespace-only should fall back to brand palette selection
+    expect(prompt).toMatch(/Select accent color from brand palette/i);
   });
 
   it('should sanitize potentially dangerous input in title', () => {
