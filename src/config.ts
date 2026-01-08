@@ -246,7 +246,7 @@ export interface CliOptions {
  * CODEX-3: Warns about invalid source tokens.
  */
 function parseSources(sourcesStr: string): SourceOption[] {
-  const valid: SourceOption[] = ['web', 'linkedin', 'x'];
+  const valid: SourceOption[] = ['web', 'linkedin', 'x', 'googletrends'];
   const tokens = sourcesStr.split(',').map((s) => s.trim().toLowerCase());
 
   // CODEX-3: Identify and warn about invalid tokens
@@ -255,7 +255,7 @@ function parseSources(sourcesStr: string): SourceOption[] {
   );
   if (invalidTokens.length > 0) {
     logWarning(
-      `Invalid source(s) ignored: ${invalidTokens.join(', ')}. Valid options: web, linkedin, x`
+      `Invalid source(s) ignored: ${invalidTokens.join(', ')}. Valid options: web, linkedin, x, googletrends`
     );
   }
 

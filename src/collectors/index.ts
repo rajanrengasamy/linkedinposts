@@ -11,6 +11,7 @@
 import { searchWeb } from './web.js';
 import { searchLinkedIn } from './linkedin.js';
 import { searchTwitter } from './twitter.js';
+import { searchGoogleTrends } from './googletrends.js';
 import type { RawItem } from '../schemas/rawItem.js';
 import type {
   PipelineConfig,
@@ -82,6 +83,10 @@ function buildCollectorList(config: PipelineConfig): Collector[] {
 
   if (config.sources.includes('web')) {
     collectors.push({ name: 'web', fn: searchWeb });
+  }
+
+  if (config.sources.includes('googletrends')) {
+    collectors.push({ name: 'googletrends', fn: searchGoogleTrends });
   }
 
   if (config.sources.includes('linkedin')) {
@@ -263,7 +268,7 @@ export async function collectAll(
         logWarning(errorMsg);
         throw new Error(errorMsg);
       } else {
-        // LinkedIn/X are optional - log warning and continue
+        // LinkedIn/X/GoogleTrends are optional - log warning and continue
         const errorMsg = `${result.name} collector failed: ${result.error}`;
         logWarning(errorMsg);
         errors.push(errorMsg);
@@ -312,19 +317,21 @@ export async function collectAll(
   const finalWebCount = countBySource(finalItems, 'web');
   const finalLinkedinCount = countBySource(finalItems, 'linkedin');
   const finalXCount = countBySource(finalItems, 'x');
+  const finalGoogletrendsCount = countBySource(finalItems, 'googletrends');
 
   // Build metadata
   const metadata: CollectionMetadata = {
     webCount: finalWebCount,
     linkedinCount: finalLinkedinCount,
     xCount: finalXCount,
+    googletrendsCount: finalGoogletrendsCount,
     duplicatesRemoved,
     errors,
   };
 
   // Log final counts
   logSuccess(
-    `Collection complete: ${finalItems.length} items (web: ${finalWebCount}, linkedin: ${finalLinkedinCount}, x: ${finalXCount})`
+    `Collection complete: ${finalItems.length} items (web: ${finalWebCount}, googletrends: ${finalGoogletrendsCount}, linkedin: ${finalLinkedinCount}, x: ${finalXCount})`
   );
 
   if (duplicatesRemoved > 0) {
@@ -349,6 +356,7 @@ export async function collectAll(
 export { searchWeb } from './web.js';
 export { searchLinkedIn } from './linkedin.js';
 export { searchTwitter } from './twitter.js';
+export { searchGoogleTrends } from './googletrends.js';
 
 // Re-export types (already defined in types/index.ts, just re-exporting for convenience)
 export type { CollectionResult, CollectionMetadata };

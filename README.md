@@ -2,17 +2,131 @@
 
 A Node.js/TypeScript CLI that turns a topic prompt into a LinkedIn-ready post by:
 
-1) collecting “what’s trending” from sources (web by default)  
-2) validating quotes/claims against real URLs  
-3) scoring + selecting the best items  
-4) synthesizing a polished post with full provenance (sources list)  
+1) collecting "what's trending" from sources (web by default)
+2) validating quotes/claims against real URLs
+3) scoring + selecting the best items
+4) synthesizing a polished post with full provenance (sources list)
 5) optionally generating an infographic
 
 The core rule is **provenance-first**:
 
 > No quote or claim should appear in the final output unless it has a verified source URL.
 
-This repo currently contains the **spec + scaffold** for Phase 0. The canonical design is in `docs/PRD-v2.md`, and the build checklist is in `docs/TODO-v2.md`.
+---
+
+## Quick Start
+
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. Set up API keys
+
+```bash
+cp .env.example .env
+# Edit .env and add your API keys:
+# - PERPLEXITY_API_KEY (required for web search + validation)
+# - OPENAI_API_KEY (required for synthesis)
+# - GOOGLE_AI_API_KEY (required for scoring)
+```
+
+### 3. (Optional) Set up Google Trends
+
+If you want to use Google Trends as a data source:
+
+```bash
+# Install PyTrends (Python library for Google Trends)
+pip install pytrends
+
+# Verify it's installed
+python3 -c "from pytrends.request import TrendReq; print('PyTrends ready!')"
+```
+
+### 4. Run with a prompt
+
+```bash
+# Basic usage - just pass your topic as a prompt
+npm run dev -- "AI trends in healthcare 2025"
+
+# The output will be in output/{timestamp}/linkedin_post.md
+```
+
+### Example prompts
+
+```bash
+# Tech topics
+npm run dev -- "Ralph Wiggum Claude Code agentic evaluation loops"
+npm run dev -- "Latest developments in AI coding assistants"
+
+# Business topics
+npm run dev -- "Remote work productivity trends 2025"
+
+# With options
+npm run dev -- "AI in healthcare" --skip-image --verbose
+npm run dev -- "Startup funding trends" --quality thorough
+npm run dev -- "Leadership lessons from tech CEOs" --synthesis-model claude
+
+# With Google Trends (requires PyTrends - see step 3)
+npm run dev -- "AI agents 2025" --sources web,googletrends
+npm run dev -- "cryptocurrency trends" --sources googletrends,web --verbose
+```
+
+### Output
+
+After running, check the `output/{timestamp}/` folder:
+- **`linkedin_post.md`** - Your ready-to-post LinkedIn content
+- **`sources.md`** - All sources used (for transparency)
+- **`synthesis.json`** - Full metadata including key quotes
+
+---
+
+## CLI Options
+
+```bash
+npm run dev -- "<your prompt>" [options]
+
+# Data sources (mix and match!)
+--sources web                    # Web only (default, safest)
+--sources web,googletrends       # Web + Google Trends
+--sources googletrends,web       # Same as above (order doesn't matter)
+--sources web,linkedin,x         # Web + social media (requires API keys)
+
+# Quality profiles
+--fast                  # Skip validation/scoring/image (quick draft)
+--quality thorough      # More sources, higher quality
+
+# Skip stages
+--skip-validation       # Skip verification (faster but less reliable)
+--skip-scoring          # Use heuristic scoring instead of AI
+--skip-image            # Skip infographic generation
+
+# Model selection
+--synthesis-model gpt   # Use GPT-5.2 (default)
+--synthesis-model claude # Use Claude Sonnet
+--synthesis-model gemini # Use Gemini
+
+# Output
+--output-dir ./my-output # Custom output directory
+--save-raw              # Save raw API responses
+--verbose               # Show detailed progress
+
+# Cost control
+--print-cost-estimate   # Show estimated cost without running
+--max-total 50          # Limit total items processed
+```
+
+### Available Data Sources
+
+| Source | Flag | Requirements | What it collects |
+|--------|------|--------------|------------------|
+| **Web** | `web` | `PERPLEXITY_API_KEY` | News, articles, expert opinions |
+| **Google Trends** | `googletrends` | `pip install pytrends` | Trending topics, rising searches, related queries |
+| **LinkedIn** | `linkedin` | `SCRAPECREATORS_API_KEY` | LinkedIn posts (unofficial API) |
+| **X/Twitter** | `x` | `SCRAPECREATORS_API_KEY` | Tweets (unofficial API) |
+
+**Note:** Google Trends is rate-limited by Google. If it fails, the pipeline continues with other sources and shows a warning.
 
 ---
 
@@ -68,6 +182,7 @@ The CLI runs a deterministic pipeline. Some stages run in parallel (collection),
 ┌──────────────────────────────────────────────────────────────┐
 │ STAGE 1: COLLECT (parallel)                                  │
 │  - Web (Perplexity)                 [required]               │
+│  - Google Trends (PyTrends)         [optional, gated]        │
 │  - LinkedIn (ScrapeCreators)         [optional, gated]       │
 │  - X/Twitter (ScrapeCreators)        [optional, gated]       │
 │ Output: RawItem[]  (capped by max-per-source / max-total)     │
@@ -281,18 +396,21 @@ src/
 ├── config.ts                # env/config + quality profiles
 ├── schemas/                 # Zod schemas for model outputs + provenance
 ├── types/                   # inferred TS types + pipeline config/result
-├── collectors/              # web/linkedin/x collection + orchestrator
+├── collectors/              # web/linkedin/x/googletrends collection
 ├── processing/              # normalization + dedup
 ├── validation/              # verification engine
 ├── scoring/                 # Gemini scoring + fallback heuristic
 ├── synthesis/               # claim extraction + post generation
 ├── image/                   # infographic generation (optional)
 └── utils/                   # retry, logging, file writing, cost estimation
+python/
+├── trends_collector.py      # PyTrends subprocess for Google Trends
+└── requirements.txt         # Python dependencies (pytrends)
 tests/
 ├── unit/
 ├── integration/             # mocked API tests
 ├── mocks/                   # fixture responses
-└── golden/                  # “expected output” snapshots
+└── golden/                  # "expected output" snapshots
 docs/
 ├── PRD-v2.md
 └── TODO-v2.md
@@ -305,6 +423,7 @@ docs/
 Prereqs:
 
 - Node.js `>=18` (see `package.json`)
+- Python 3.x (optional, only needed for Google Trends)
 
 Setup:
 

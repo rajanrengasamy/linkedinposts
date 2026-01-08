@@ -8,7 +8,7 @@ export const SCHEMA_VERSION = '1.0.0' as const;
 /**
  * Source types for collected data
  */
-export const SourceTypeSchema = z.enum(['web', 'linkedin', 'x']);
+export const SourceTypeSchema = z.enum(['web', 'linkedin', 'x', 'googletrends']);
 export type SourceType = z.infer<typeof SourceTypeSchema>;
 
 /**

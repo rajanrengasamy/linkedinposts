@@ -26,7 +26,7 @@ export type ImageResolution = z.infer<typeof ImageResolutionSchema>;
 // Source Option Schema
 // ============================================
 
-export const SourceOptionSchema = z.enum(['web', 'linkedin', 'x']);
+export const SourceOptionSchema = z.enum(['web', 'linkedin', 'x', 'googletrends']);
 export type SourceOption = z.infer<typeof SourceOptionSchema>;
 
 // ============================================

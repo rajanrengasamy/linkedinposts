@@ -12,3 +12,4 @@ export * from './stableId.js';
 export * from './concurrency.js';
 export * from './cost.js';
 export * from './handleLoader.js';
+export * from './imageMetadata.js';

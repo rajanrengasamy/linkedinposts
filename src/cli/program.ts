@@ -41,7 +41,7 @@ export function createProgram(): Command {
     .argument('<prompt>', 'Topic or prompt for the post')
 
     // Source Control
-    .option('--sources <list>', 'Comma-separated sources: web,linkedin,x', 'web')
+    .option('--sources <list>', 'Comma-separated sources: web,googletrends,linkedin,x', 'web')
 
     // Stage Control
     .option('--skip-validation', 'Skip verification stage')
@@ -94,6 +94,9 @@ export function createProgram(): Command {
 Examples:
   # Safe mode: web only (recommended)
   $ npx tsx src/index.ts "AI trends in healthcare 2025"
+
+  # Include Google Trends for trending topic analysis
+  $ npx tsx src/index.ts "AI trends" --sources web,googletrends
 
   # Include social sources (use with caution - may violate ToS)
   $ npx tsx src/index.ts "AI trends" --sources web,linkedin,x

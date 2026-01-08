@@ -19,6 +19,7 @@ import {
   SCHEMA_VERSION,
 } from '../schemas/index.js';
 import { logVerbose, logError } from './logger.js';
+import { stripImageMetadata } from './imageMetadata.js';
 
 // ============================================
 // Path Security
@@ -232,15 +233,30 @@ export async function writeLinkedInPosts(
 
 /**
  * Write binary PNG image to file.
+ * Automatically strips metadata (EXIF, IPTC, etc.) to prevent AI-generation detection.
  *
  * @param filePath - Full path to output file
  * @param buffer - Image data as Buffer
  */
 export async function writePNG(filePath: string, buffer: Buffer): Promise<void> {
   await ensureParentDir(filePath);
-  await writeFile(filePath, buffer);
 
-  logVerbose(`Wrote PNG: ${filePath} (${buffer.length} bytes)`);
+  // Strip metadata before writing to prevent AI-generation detection
+  const cleanedBuffer = stripImageMetadata(buffer);
+
+  await writeFile(filePath, cleanedBuffer);
+
+  const originalSize = buffer.length;
+  const cleanedSize = cleanedBuffer.length;
+  const savedBytes = originalSize - cleanedSize;
+
+  if (savedBytes > 0) {
+    logVerbose(
+      `Wrote PNG: ${filePath} (${cleanedSize} bytes, stripped ${savedBytes} bytes metadata)`
+    );
+  } else {
+    logVerbose(`Wrote PNG: ${filePath} (${cleanedSize} bytes)`);
+  }
 }
 
 /**

@@ -136,7 +136,7 @@ export type PostStyle = 'series' | 'variations';
 /**
  * Source types that can be enabled
  */
-export type SourceOption = 'web' | 'linkedin' | 'x';
+export type SourceOption = 'web' | 'linkedin' | 'x' | 'googletrends';
 
 /**
  * Pipeline configuration - parsed from CLI options
@@ -285,6 +285,7 @@ export interface CollectionMetadata {
   webCount: number;
   linkedinCount: number;
   xCount: number;
+  googletrendsCount: number;
   duplicatesRemoved: number;
   errors: string[];
 }
@@ -339,6 +340,7 @@ export const API_CONCURRENCY_LIMITS = {
   gemini: 2,
   openai: 1,
   nanoBanana: 1,
+  googletrends: 1, // Sequential calls to avoid rate limiting
 } as const;
 
 /**
