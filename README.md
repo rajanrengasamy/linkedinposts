@@ -1,488 +1,196 @@
-# LinkedIn Post Generator (Phase 0 — CLI)
+# LinkedIn Post Generator
 
-A Node.js/TypeScript CLI that turns a topic prompt into a LinkedIn-ready post by:
+A **provenance-first** CLI tool that transforms topic prompts into LinkedIn-ready posts with full source attribution and optional infographic generation.
 
-1) collecting "what's trending" from sources (web by default)
-2) validating quotes/claims against real URLs
-3) scoring + selecting the best items
-4) synthesizing a polished post with full provenance (sources list)
-5) optionally generating an infographic
+> **Status:** Phase 0 proof-of-concept. Demonstrates the architectural approach for multi-model content pipelines. Functional but would benefit from refactoring before production use.
 
-The core rule is **provenance-first**:
+## The Problem
+
+AI-generated content often suffers from hallucinations and lacks verifiable sources. This tool addresses that by enforcing a core principle:
 
 > No quote or claim should appear in the final output unless it has a verified source URL.
 
----
+## Features
+
+- **Multi-Source Collection** — Web research (Perplexity), Google Trends, LinkedIn posts, X/Twitter
+- **Claim Verification** — Cross-checks quotes against live sources with 4-level confidence
+- **Intelligent Scoring** — Multi-dimensional ranking: relevance, authenticity, recency, engagement
+- **Multi-Model Synthesis** — Choose from GPT-5.2, Gemini, Claude, or KIMI
+- **Infographic Generation** — Optional AI-generated visuals
+- **Cost Tracking** — Per-stage breakdown with `--print-cost-estimate` preview
+- **Quality Profiles** — Fast, default, and thorough modes
 
 ## Quick Start
 
-### 1. Install dependencies
-
 ```bash
+# Install
 npm install
-```
-
-### 2. Set up API keys
-
-```bash
 cp .env.example .env
-# Edit .env and add your API keys:
-# - PERPLEXITY_API_KEY (required for web search + validation)
-# - OPENAI_API_KEY (required for synthesis)
-# - GOOGLE_AI_API_KEY (required for scoring)
-```
+# Add API keys: PERPLEXITY_API_KEY, OPENAI_API_KEY, GOOGLE_AI_API_KEY
 
-### 3. (Optional) Set up Google Trends
-
-If you want to use Google Trends as a data source:
-
-```bash
-# Install PyTrends (Python library for Google Trends)
-pip install pytrends
-
-# Verify it's installed
-python3 -c "from pytrends.request import TrendReq; print('PyTrends ready!')"
-```
-
-### 4. Run with a prompt
-
-```bash
-# Basic usage - just pass your topic as a prompt
+# Run
 npm run dev -- "AI trends in healthcare 2025"
 
-# The output will be in output/{timestamp}/linkedin_post.md
+# Output in: output/{timestamp}/linkedin_post.md
 ```
 
-### Example prompts
+## Architecture
+
+```
+User Prompt
+    ↓
+[Stage 0] Prompt Refinement (optional, interactive)
+    ↓
+[Stage 1] Data Collection (parallel: web, social, trends)
+    ↓
+[Stage 2] Normalization & Deduplication
+    ↓
+[Stage 3] Validation (cross-check claims against sources)
+    ↓
+[Stage 4] Scoring & Ranking
+    ↓
+[Stage 5] Synthesis (generate LinkedIn post)
+    ↓
+[Stage 6] Image Generation (optional)
+    ↓
+Output: linkedin_post.md + sources.json + infographic.png
+```
+
+**Design Principles:**
+- Pipeline/ETL-style workflow with Zod schema validation
+- Fail-open for optional stages (social, refinement, image)
+- Fail-closed for required stages (web collection)
+- Strong provenance tracking throughout
+
+## Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| Runtime | Node.js 18+ |
+| Language | TypeScript 5.9 (strict mode) |
+| CLI | Commander |
+| Validation | Zod |
+| Web Research | Perplexity Sonar Reasoning Pro |
+| Scoring | Gemini 3 Flash |
+| Synthesis | OpenAI GPT-5.2 (default) |
+| Image Gen | Google Nano Banana Pro |
+
+## Usage Examples
 
 ```bash
-# Tech topics
-npm run dev -- "Ralph Wiggum Claude Code agentic evaluation loops"
-npm run dev -- "Latest developments in AI coding assistants"
+# Basic
+npm run dev -- "AI trends in healthcare 2025"
 
-# Business topics
-npm run dev -- "Remote work productivity trends 2025"
+# With quality profile
+npm run dev -- "Leadership lessons from tech CEOs" --quality thorough
 
-# With options
-npm run dev -- "AI in healthcare" --skip-image --verbose
-npm run dev -- "Startup funding trends" --quality thorough
-npm run dev -- "Leadership lessons from tech CEOs" --synthesis-model claude
+# Multiple sources (requires pytrends: pip install pytrends)
+npm run dev -- "AI agents" --sources web,googletrends
 
-# With Google Trends (requires PyTrends - see step 3)
-npm run dev -- "AI agents 2025" --sources web,googletrends
-npm run dev -- "cryptocurrency trends" --sources googletrends,web --verbose
+# Skip image generation
+npm run dev -- "Startup trends" --skip-image
+
+# Generate multiple variations
+npm run dev -- "Topic" --post-count 3 --post-style series
+
+# Preview cost
+npm run dev -- "Topic" --print-cost-estimate --dry-run
+
+# Different synthesis model
+npm run dev -- "Topic" --synthesis-model claude
 ```
-
-### Output
-
-After running, check the `output/{timestamp}/` folder:
-- **`linkedin_post.md`** - Your ready-to-post LinkedIn content
-- **`sources.md`** - All sources used (for transparency)
-- **`synthesis.json`** - Full metadata including key quotes
-
----
 
 ## CLI Options
 
-```bash
-npm run dev -- "<your prompt>" [options]
+| Flag | Description |
+|------|-------------|
+| `--sources` | Comma-separated: web, googletrends, linkedin, x |
+| `--quality` | fast \| default \| thorough |
+| `--skip-validation` | Skip claim verification |
+| `--skip-scoring` | Use heuristic scoring |
+| `--skip-image` | Skip infographic generation |
+| `--synthesis-model` | gpt \| gemini \| claude \| kimi2 |
+| `--post-count` | Generate 1-3 variations |
+| `--print-cost-estimate` | Preview API costs |
+| `--verbose` | Detailed logging |
 
-# Data sources (mix and match!)
---sources web                    # Web only (default, safest)
---sources web,googletrends       # Web + Google Trends
---sources googletrends,web       # Same as above (order doesn't matter)
---sources web,linkedin,x         # Web + social media (requires API keys)
+## Output
 
-# Quality profiles
---fast                  # Skip validation/scoring/image (quick draft)
---quality thorough      # More sources, higher quality
+Each run creates a timestamped folder:
 
-# Skip stages
---skip-validation       # Skip verification (faster but less reliable)
---skip-scoring          # Use heuristic scoring instead of AI
---skip-image            # Skip infographic generation
-
-# Model selection
---synthesis-model gpt   # Use GPT-5.2 (default)
---synthesis-model claude # Use Claude Sonnet
---synthesis-model gemini # Use Gemini
-
-# Output
---output-dir ./my-output # Custom output directory
---save-raw              # Save raw API responses
---verbose               # Show detailed progress
-
-# Cost control
---print-cost-estimate   # Show estimated cost without running
---max-total 50          # Limit total items processed
+```
+output/2026-01-13-14-35-12/
+├── linkedin_post.md      # Ready-to-post content
+├── sources.json          # Machine-readable provenance
+├── sources.md            # Human-readable source list
+├── synthesis.json        # Full synthesis metadata
+├── validated_data.json   # Verification results
+├── scored_data.json      # Ranking scores
+├── infographic.png       # Generated image (if enabled)
+└── pipeline_status.json  # Timing, costs, errors
 ```
 
-### Available Data Sources
+## Verification Levels
 
-| Source | Flag | Requirements | What it collects |
-|--------|------|--------------|------------------|
-| **Web** | `web` | `PERPLEXITY_API_KEY` | News, articles, expert opinions |
-| **Google Trends** | `googletrends` | `pip install pytrends` | Trending topics, rising searches, related queries |
-| **LinkedIn** | `linkedin` | `SCRAPECREATORS_API_KEY` | LinkedIn posts (unofficial API) |
-| **X/Twitter** | `x` | `SCRAPECREATORS_API_KEY` | Tweets (unofficial API) |
+Content is tagged with verification confidence:
 
-**Note:** Google Trends is rate-limited by Google. If it fails, the pipeline continues with other sources and shows a warning.
+| Level | Description |
+|-------|-------------|
+| `UNVERIFIED` | No source confirmation |
+| `SOURCE_CONFIRMED` | Single source verified |
+| `MULTISOURCE_CONFIRMED` | Multiple sources agree |
+| `PRIMARY_SOURCE` | Original publication found |
 
----
+## Project Structure
 
-## Who this is for
-
-- You want to “vibe code” a content generator, but you don’t want pure hallucinations.
-- You want something you can run locally and copy/paste into LinkedIn (no auto-posting).
-- You want a simple architecture you can understand and extend.
-
----
-
-## Is this a “router-worker” architecture?
-
-**Not in Phase 0.** This is best described as a **pipeline** (also like a small ETL workflow) with a single **orchestrator** that runs a sequence of stages:
-
-- **Pipeline**: a step-by-step assembly line (collect → clean → verify → score → write).
-- **Orchestrator**: the “conductor” that calls each stage and wires outputs to inputs.
-
-### What “router-worker” usually means (for web apps)
-
-In many web architectures:
-
-- a **router** receives HTTP requests (e.g., `/generate`) and decides what code runs
-- a **worker** runs long jobs in the background (queues, retries, job status, etc.)
-
-Phase 0 is a CLI, so there’s no HTTP router. If you later build a web UI (Phase 1+), *then* a router-worker approach often makes sense:
-
-```text
-Browser/UI ──HTTP──> API Router (Next.js/Express)
-                     │
-                     ├─> quick responses (validate input, create job)
-                     │
-                     └─> Job Queue (Redis/SQS/etc.)
-                              │
-                              └─> Worker(s): run the same pipeline
-                                         │
-                                         └─> Persist job output + status
 ```
-
----
-
-## Architecture (Phase 0 runtime)
-
-The CLI runs a deterministic pipeline. Some stages run in parallel (collection), but the overall flow is sequential.
-
-```text
-┌──────────────────────────────────────────────────────────────┐
-│                          CLI (src/index.ts)                  │
-│ prompt + flags  →  build PipelineConfig  →  run pipeline      │
-└───────────────────────────────┬──────────────────────────────┘
-                                │
-                                ▼
-┌──────────────────────────────────────────────────────────────┐
-│ STAGE 1: COLLECT (parallel)                                  │
-│  - Web (Perplexity)                 [required]               │
-│  - Google Trends (PyTrends)         [optional, gated]        │
-│  - LinkedIn (ScrapeCreators)         [optional, gated]       │
-│  - X/Twitter (ScrapeCreators)        [optional, gated]       │
-│ Output: RawItem[]  (capped by max-per-source / max-total)     │
-└───────────────────────────────┬──────────────────────────────┘
-                                │
-                                ▼
-┌──────────────────────────────────────────────────────────────┐
-│ NORMALIZE + DEDUP                                             │
-│  - content normalization                                      │
-│  - deterministic hash dedup (sha256 → 16 chars)               │
-│  - optional similarity dedup (Jaccard threshold, e.g. 0.85)   │
-│ Output: RawItem[] (deduplicated)                              │
-└───────────────────────────────┬──────────────────────────────┘
-                                │
-                                ▼
-┌──────────────────────────────────────────────────────────────┐
-│ STAGE 2: VALIDATE (Perplexity reasoning)                      │
-│  - cross-check quotes/claims against web sources              │
-│  - verify attribution + publication date when possible        │
-│  - assign verification level + confidence                     │
-│ Output: ValidatedItem[] (UNVERIFIED allowed; pipeline continues)│
-└───────────────────────────────┬──────────────────────────────┘
-                                │
-                                ▼
-┌──────────────────────────────────────────────────────────────┐
-│ STAGE 3: SCORE (Gemini)                                       │
-│  - relevance / authenticity / recency / engagementPotential   │
-│  - weighted overall score                                     │
-│  - fallback heuristic if model fails                          │
-│ Output: ScoredItem[] (ranked)                                 │
-└───────────────────────────────┬──────────────────────────────┘
-                                │
-                                ▼
-┌──────────────────────────────────────────────────────────────┐
-│ STAGE 4: SYNTHESIZE (OpenAI)                                  │
-│  - pick top items                                              │
-│  - write final LinkedIn post (<= 3000 chars, CTA, 3–5 hashtags)│
-│  - include only quotes with source URLs                        │
-│  - generate fact-check summary + infographic brief            │
-│ Output: SynthesisResult                                        │
-└───────────────────────────────┬──────────────────────────────┘
-                                │
-                                ▼
-┌──────────────────────────────────────────────────────────────┐
-│ STAGE 5: IMAGE (optional)                                     │
-│  - generate infographic.png (best-effort)                     │
-│ Output: infographic.png or skipped                            │
-└───────────────────────────────┬──────────────────────────────┘
-                                │
-                                ▼
-┌──────────────────────────────────────────────────────────────┐
-│ output/{timestamp}/                                           │
-│  raw_data.json? → validated_data.json → scored_data.json      │
-│  sources.json + sources.md + linkedin_post.md + synthesis.json │
-│  infographic.png? + pipeline_status.json                      │
-└──────────────────────────────────────────────────────────────┘
-```
-
----
-
-## What counts as “trending” (Phase 0 defaults)
-
-From `docs/PRD-v2.md`, “trending” is a pragmatic filter, not a guarantee:
-
-- Time window: last ~7 days
-- Minimum engagement: ~10 interactions (likes + comments + shares)
-- Language: English
-- Region: global
-
-The collector stage is expected to expand your prompt into a few sub-queries (e.g., expert opinions, latest news, statistics) and then pull back items that fit the window and thresholds.
-
----
-
-## What “verified” means here (important)
-
-This project does **not** claim “truth.” It produces **verification levels** based on what it can find on the web at runtime.
-
-Verification levels (from `docs/PRD-v2.md`):
-
-- `UNVERIFIED`: could not corroborate
-- `SOURCE_CONFIRMED`: found in 1 web source
-- `MULTISOURCE_CONFIRMED`: found in 2+ independent sources
-- `PRIMARY_SOURCE`: confirmed from original/authoritative source
-
-Content rules (Phase 0 target):
-
-- **No quote in final post** unless it’s at least `SOURCE_CONFIRMED` *and* has a source URL.
-- “Expert says …” style attributions should ideally be `MULTISOURCE_CONFIRMED`.
-- Statistical claims should ideally be `PRIMARY_SOURCE`.
-
----
-
-## Data model (the contracts between stages)
-
-Each stage reads and writes strongly-typed JSON. The plan is to validate all model outputs with **Zod** schemas.
-
-High-level objects (see `docs/PRD-v2.md` and `docs/TODO-v2.md`):
-
-- `RawItem`: what we collected (content + provenance + engagement)
-- `ValidatedItem`: `RawItem` + verification results
-- `ScoredItem`: `ValidatedItem` + scoring + rank
-- `SynthesisResult`: final post + key quotes + infographic brief + fact-check summary
-- `SourceReference`: the provenance index for everything used
-
-This “data contracts” approach is what keeps a multi-model pipeline sane: each stage has a clear input/output and can be tested/mocked.
-
----
-
-## CLI (Phase 0 target interface)
-
-The PRD defines the CLI UX; the implementation is tracked in `docs/TODO-v2.md`.
-
-```bash
-# Safe mode: web sources only (default)
-npm run dev -- "AI trends in healthcare 2025"
-
-# Explicit sources (social sources are optional + higher risk)
-npm run dev -- "AI trends" --sources web,linkedin,x
-
-# Fast draft: skip expensive stages
-npm run dev -- "AI trends" --fast
-
-# Highest quality profile (more items/time)
-npm run dev -- "AI trends" --quality thorough
-
-# Save raw API responses for debugging
-npm run dev -- "AI trends" --save-raw --verbose
-
-# Estimate cost before running
-npm run dev -- "AI trends" --print-cost-estimate
-```
-
-Planned options (from `docs/PRD-v2.md`):
-
-- `--sources web,linkedin,x` (default: `web`)
-- `--skip-validation`, `--skip-scoring`, `--skip-image`
-- `--fast` and `--quality fast|default|thorough`
-- limits: `--max-per-source`, `--max-total` (aka `--max-results`)
-- batching: `--validation-batch`, `--scoring-batch`
-- output: `--output-dir`, `--save-raw`, `--image-resolution 2k|4k`
-- performance: `--timeout`, `--print-cost-estimate`
-- debug: `--verbose`, `--dry-run`
-- `-h, --help` and `-V, --version`
-
----
-
-## Outputs (what gets written to disk)
-
-Each run writes a timestamped folder:
-
-```text
-output/{timestamp}/
-├── raw_data.json            # only if --save-raw
-├── validated_data.json
-├── scored_data.json
-├── top_50.json
-├── synthesis.json
-├── sources.json             # provenance index (machine-friendly)
-├── sources.md               # provenance index (human-friendly)
-├── linkedin_post.md         # final copy/paste post
-├── infographic.png          # optional
-└── pipeline_status.json     # timings, errors, run metadata
-```
-
-If a stage fails mid-run, the goal is to **still write partial outputs** and a clear `pipeline_status.json` so you can debug or resume.
-
----
-
-## Compliance, safety, and “don’t get banned”
-
-From `docs/PRD-v2.md`:
-
-- Default mode is **web-only** (lower risk) using Perplexity’s API.
-- LinkedIn/X sources use an **unofficial** scraping API and may violate platform ToS.
-- Social sources should be **explicitly enabled** via flags (e.g., `--sources linkedin`).
-
-Data handling:
-
-- By default, only processed/scored outputs are persisted.
-- Raw API responses should require an explicit `--save-raw`.
-- The tool should avoid collecting/storing anything beyond what’s already public in source content.
-- No credential storage (no “log into LinkedIn”).
-- On shared machines, treat `output/` as your responsibility (a reasonable default is deleting runs after ~30 days).
-
-Privacy note (practical reality for all AI pipelines):
-
-- Your prompt and collected snippets are sent to the configured third-party APIs (Perplexity/Google/OpenAI/etc.) to do the work.
-- Don’t put secrets or sensitive/private data in prompts unless you’re comfortable with those providers’ data policies.
-
----
-
-## Cost + performance controls (why they matter)
-
-Multi-model pipelines can get expensive and slow. Phase 0 includes these design controls:
-
-- hard caps: max items per source, max total items
-- batch sizes for validation/scoring (to control token usage)
-- per-stage and overall timeouts
-- `--fast` / `--quality` profiles
-- `--print-cost-estimate` to see expected spend *before* running
-
----
-
-## Project layout
-
-The folder structure mirrors the pipeline stages:
-
-```text
 src/
-├── index.ts                 # CLI entry point (orchestrator)
-├── config.ts                # env/config + quality profiles
-├── schemas/                 # Zod schemas for model outputs + provenance
-├── types/                   # inferred TS types + pipeline config/result
-├── collectors/              # web/linkedin/x/googletrends collection
-├── processing/              # normalization + dedup
-├── validation/              # verification engine
-├── scoring/                 # Gemini scoring + fallback heuristic
-├── synthesis/               # claim extraction + post generation
-├── image/                   # infographic generation (optional)
-└── utils/                   # retry, logging, file writing, cost estimation
+├── cli/           # CLI interface & pipeline orchestration
+├── collectors/    # Data collection (web, social, trends)
+├── processing/    # Normalization & deduplication
+├── validation/    # Claim verification
+├── scoring/       # Content ranking
+├── synthesis/     # Post generation
+├── refinement/    # Prompt clarification
+├── image/         # Infographic generation
+├── schemas/       # Zod validation schemas
+└── utils/         # Logging, retry, concurrency
+
 python/
-├── trends_collector.py      # PyTrends subprocess for Google Trends
-└── requirements.txt         # Python dependencies (pytrends)
-tests/
-├── unit/
-├── integration/             # mocked API tests
-├── mocks/                   # fixture responses
-└── golden/                  # "expected output" snapshots
+├── trends_collector.py  # PyTrends subprocess
+└── requirements.txt
+
 docs/
-├── PRD-v2.md
-└── TODO-v2.md
+├── PRD-v2.md           # Product requirements
+└── TODO-v2.md          # Implementation checklist
 ```
 
----
+## API Keys Required
 
-## Getting started (local dev)
+| Key | Purpose | Required |
+|-----|---------|----------|
+| `PERPLEXITY_API_KEY` | Web collection & validation | Yes |
+| `GOOGLE_AI_API_KEY` | Scoring & image generation | Yes |
+| `OPENAI_API_KEY` | Synthesis | Yes |
+| `SCRAPECREATORS_API_KEY` | LinkedIn/X scraping | Optional |
+| `OPENROUTER_API_KEY` | Alternative models | Optional |
+| `ANTHROPIC_API_KEY` | Claude synthesis | Optional |
 
-Prereqs:
+## Compliance Notes
 
-- Node.js `>=18` (see `package.json`)
-- Python 3.x (optional, only needed for Google Trends)
-
-Setup:
-
-```bash
-npm install
-cp .env.example .env
-# fill in keys in .env
-```
-
-Run (Phase 0 target; see TODO for current implementation status):
-
-```bash
-npm run dev -- "your prompt here"
-```
-
-Typecheck / build (works even while the CLI is scaffolded):
-
-```bash
-npm run typecheck
-npm run build
-```
-
-Tests:
-
-- The `tests/` folder is scaffolded but does not yet include `*.test.ts` files, so `npm test` will currently exit with “No test files found”.
-
----
-
-## Current status
-
-- `docs/PRD-v2.md` defines the full Phase 0 behavior and constraints.
-- `docs/TODO-v2.md` is the step-by-step implementation checklist.
-- `src/` currently contains scaffolding placeholders for the planned modules (so `npm run dev` is a no-op until `src/index.ts` and the stages are implemented).
-
----
+- Default mode is **web-only** using Perplexity's official API
+- LinkedIn/X sources use unofficial scraping APIs (may violate ToS)
+- Social sources require explicit `--sources linkedin,x` flag
+- Your prompts are sent to third-party APIs (Perplexity/Google/OpenAI)
 
 ## Roadmap
 
-- Phase 0: CLI pipeline (this repo)
-- Phase 1+: Web UI + accounts (likely needs router + background workers)
-- Future: scheduled runs, templates, multi-platform outputs, collaborative editing
+- **Phase 0 (Current):** CLI pipeline with 6 stages
+- **Phase 1:** Web UI with authentication
+- **Phase 2:** Background job queues
+- **Phase 3:** Scheduled runs, templates
+- **Phase 4:** Multi-platform outputs
 
----
+## License
 
-## FAQ (for vibe coders)
-
-**Why so many stages?**  
-Because “generate a post” is actually multiple problems: find sources, remove duplicates, verify claims, pick the best items, then write nicely.
-
-**Why not just prompt an LLM once?**  
-One-shot prompting is fast, but it’s hard to enforce “no quote without source.” A pipeline + provenance makes it auditable.
-
-**What if validation fails?**  
-The design is “graceful degradation”: mark items `UNVERIFIED`, reduce reliance on authenticity, and still produce usable output (or fail clearly if synthesis can’t run).
-
----
-
-## References
-
-- Spec: `docs/PRD-v2.md`
-- Implementation checklist: `docs/TODO-v2.md`
-- Prior spec + feedback: `docs/PRD.md`, `docs/prd-feedbackv1.md`
+Private project.
