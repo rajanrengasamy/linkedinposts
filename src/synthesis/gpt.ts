@@ -19,12 +19,15 @@
  */
 
 import OpenAI from 'openai';
-import { getApiKey } from '../config.js';
+import { getApiKey, isCLIModeEnabled, getCLITimeoutMs, getOpenCodeModel } from '../config.js';
 import { withRetry, CRITICAL_RETRY_OPTIONS, TimeoutError } from '../utils/retry.js';
 import { createSafeError } from '../utils/sanitization.js';
-import { logVerbose, logWarning } from '../utils/logger.js';
+import { logVerbose, logWarning, logInfo } from '../utils/logger.js';
 import { STAGE_TIMEOUT_MS, DEFAULT_CONFIG } from '../types/index.js';
 import type { SynthesizerFn, SynthesisOptions } from './types.js';
+import { routeLLMRequest, shouldUseOpenCode, shouldUseCLI } from '../llm/fallback-router.js';
+import { getCodexCLIClient } from '../llm/codex-cli-wrapper.js';
+import { getOpenCodeOpenAIClient } from '../llm/opencode-wrapper.js';
 
 // ============================================
 // Model Configuration
@@ -421,6 +424,125 @@ export async function makeGPTRequest(
   );
 
   return result.data;
+}
+
+// ============================================
+// CLI Request Functions (Fallback Tiers)
+// ============================================
+
+/**
+ * Make GPT request via Codex CLI (ChatGPT Pro subscription).
+ *
+ * Uses the Codex CLI wrapper which provides an OpenAI SDK-compatible interface
+ * but routes through the CLI to use subscription authentication instead of
+ * per-token API billing.
+ *
+ * @param prompt - The user prompt to send
+ * @param options - Optional request configuration
+ * @returns Promise resolving to GPTResponse with content and usage stats
+ * @throws CLIError if CLI is not available or request fails
+ */
+async function makeGPTRequestViaCLI(
+  prompt: string,
+  options?: GPTRequestOptions
+): Promise<GPTResponse> {
+  const client = getCodexCLIClient({
+    timeout: options?.timeout ?? getCLITimeoutMs(),
+  });
+
+  if (!client) {
+    throw new Error('Codex CLI not available');
+  }
+
+  const response = await client.chat.completions.create({
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: prompt },
+    ],
+    model: 'gpt-5.2',
+    max_tokens: options?.maxTokens ?? MAX_TOKENS,
+  });
+
+  return {
+    content: response.choices[0]?.message?.content ?? '',
+    usage: {
+      promptTokens: response.usage?.prompt_tokens ?? 0,
+      completionTokens: response.usage?.completion_tokens ?? 0,
+      totalTokens: response.usage?.total_tokens ?? 0,
+    },
+  };
+}
+
+/**
+ * Make GPT request via OpenCode CLI.
+ *
+ * Uses the OpenCode CLI wrapper which provides access to OpenAI models
+ * through OpenCode's subscription-based authentication via plugins.
+ * This is the highest priority tier in the fallback chain.
+ *
+ * @param prompt - The user prompt to send
+ * @param options - Optional request configuration
+ * @returns Promise resolving to GPTResponse with content and usage stats
+ * @throws CLIError if CLI is not available or request fails
+ */
+async function makeGPTRequestViaOpenCode(
+  prompt: string,
+  options?: GPTRequestOptions
+): Promise<GPTResponse> {
+  const client = getOpenCodeOpenAIClient({
+    model: getOpenCodeModel('openai'),
+    timeout: options?.timeout ?? getCLITimeoutMs(),
+  });
+
+  if (!client) {
+    throw new Error('OpenCode CLI not available');
+  }
+
+  const response = await client.chat.completions.create({
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: prompt },
+    ],
+    model: getOpenCodeModel('openai'),
+    max_tokens: options?.maxTokens ?? MAX_TOKENS,
+  });
+
+  return {
+    content: response.choices[0]?.message?.content ?? '',
+    usage: {
+      promptTokens: response.usage?.prompt_tokens ?? 0,
+      completionTokens: response.usage?.completion_tokens ?? 0,
+      totalTokens: response.usage?.total_tokens ?? 0,
+    },
+  };
+}
+
+/**
+ * Make GPT request with fallback routing (OpenCode -> CLI -> API).
+ *
+ * Routes the request through the multi-tier fallback system:
+ * - Tier 1: OpenCode CLI (if enabled and available)
+ * - Tier 2: Codex CLI (if enabled and available)
+ * - Tier 3: Direct OpenAI API (fallback, per-token billing)
+ *
+ * @param prompt - The user prompt to send
+ * @param options - Optional request configuration
+ * @returns Promise resolving to GPTResponse with content and usage stats
+ * @throws Error if all tiers fail
+ */
+export async function makeGPTRequestWithFallback(
+  prompt: string,
+  options?: GPTRequestOptions
+): Promise<GPTResponse> {
+  const result = await routeLLMRequest<GPTResponse>(
+    () => makeGPTRequest(prompt, options),           // Tier 3: API
+    () => makeGPTRequestViaCLI(prompt, options),     // Tier 2: CLI
+    () => makeGPTRequestViaOpenCode(prompt, options), // Tier 1: OpenCode
+    { provider: 'openai' }
+  );
+
+  logInfo(`GPT synthesis routed via ${result.tier} (attempted: ${result.tiersAttempted.join(' -> ')})`);
+  return result.result;
 }
 
 // ============================================
@@ -1405,10 +1527,10 @@ export async function synthesize(
     ? buildMultiPostPrompt(claims, prompt, config.postCount, config.postStyle)
     : buildSynthesisPrompt(claims, prompt);
 
-  // 3. Call GPT with retry (throws on failure - FATAL)
+  // 3. Call GPT with fallback routing (throws on failure - FATAL)
   let gptResponse: GPTResponse;
   try {
-    gptResponse = await makeGPTRequest(synthesisPrompt, {
+    gptResponse = await makeGPTRequestWithFallback(synthesisPrompt, {
       operationName: isMultiPost ? 'GPT multi-post synthesis' : 'GPT synthesis',
       reasoningEffort: 'medium',
       // Increase max tokens for multi-post to accommodate larger response

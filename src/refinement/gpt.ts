@@ -13,14 +13,17 @@
  */
 
 import OpenAI from 'openai';
-import { getApiKey } from '../config.js';
+import { getApiKey, isCLIModeEnabled, getCLITimeoutMs, getOpenCodeModel } from '../config.js';
 import { withRetry, CRITICAL_RETRY_OPTIONS, TimeoutError } from '../utils/retry.js';
 import { createSafeError } from '../utils/sanitization.js';
-import { logVerbose, logWarning } from '../utils/logger.js';
+import { logVerbose, logWarning, logInfo } from '../utils/logger.js';
 import { STAGE_TIMEOUT_MS } from '../types/index.js';
 import { PromptAnalysisSchema } from './schemas.js';
 import { buildAnalysisPrompt, ANALYSIS_SYSTEM_PROMPT } from './prompts.js';
 import type { PromptAnalysis, RefinementConfig } from './types.js';
+import { routeLLMRequest } from '../llm/fallback-router.js';
+import { getCodexCLIClient } from '../llm/codex-cli-wrapper.js';
+import { getOpenCodeOpenAIClient } from '../llm/opencode-wrapper.js';
 
 // ============================================
 // Constants
@@ -200,68 +203,107 @@ export async function analyzeWithGPT(
   config: RefinementConfig
 ): Promise<PromptAnalysis> {
   const timeout = config.timeoutMs ?? STAGE_TIMEOUT_MS;
+  const cliTimeout = getCLITimeoutMs();
   const operationName = 'GPT prompt analysis';
 
   logVerbose(`${operationName}: Analyzing prompt (${prompt.length} chars)`);
 
-  // Get client (validates API key)
-  const client = getOpenAIClient();
-
   // Build the analysis prompt (function only needs the prompt)
   const analysisPrompt = buildAnalysisPrompt(prompt);
 
-  // Make API request with retry logic and timeout enforcement
-  const result = await withRetry(
-    async () => {
-      // Create timeout promise for enforcement
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(
-          () => reject(new TimeoutError(`${operationName} timed out after ${timeout}ms`, timeout)),
-          timeout
-        );
-      });
+  // Define API request function (Tier 3: Direct API)
+  const apiRequest = async (): Promise<string> => {
+    const client = getOpenAIClient();
 
-      // Build the API request using Responses API
-      // Responses API is recommended for GPT-5.2 - better reasoning, caching, performance
-      const apiPromise = client.responses.create({
-        model: GPT_MODEL,
-        instructions: ANALYSIS_SYSTEM_PROMPT,
-        input: [{ role: 'user' as const, content: analysisPrompt }],
-        reasoning: { effort: REASONING_EFFORT },
-        text: { format: { type: 'json_object' as const } },
-        max_output_tokens: MAX_TOKENS,
-      });
+    const result = await withRetry(
+      async () => {
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(
+            () => reject(new TimeoutError(`${operationName} timed out after ${timeout}ms`, timeout)),
+            timeout
+          );
+        });
 
-      // Race between API call and timeout
-      const response = await Promise.race([apiPromise, timeoutPromise]);
+        const apiPromise = client.responses.create({
+          model: GPT_MODEL,
+          instructions: ANALYSIS_SYSTEM_PROMPT,
+          input: [{ role: 'user' as const, content: analysisPrompt }],
+          reasoning: { effort: REASONING_EFFORT },
+          text: { format: { type: 'json_object' as const } },
+          max_output_tokens: MAX_TOKENS,
+        });
 
-      // Extract content from Responses API structure
-      const content = response.output_text;
-      if (!content || content.trim().length === 0) {
-        throw new Error('GPT prompt analysis response has empty output_text');
-      }
+        const response = await Promise.race([apiPromise, timeoutPromise]);
+        const content = response.output_text;
+        if (!content || content.trim().length === 0) {
+          throw new Error('GPT prompt analysis response has empty output_text');
+        }
+        return content.trim();
+      },
+      { ...CRITICAL_RETRY_OPTIONS, operationName }
+    );
 
-      return content.trim();
-    },
-    {
-      ...CRITICAL_RETRY_OPTIONS,
-      operationName,
+    if (!result.success) {
+      throw createSafeError(`${operationName} (after ${result.attempts} attempts)`, result.error);
     }
+    return result.data;
+  };
+
+  // Define CLI request function (Tier 2: Codex CLI)
+  const cliRequest = async (): Promise<string> => {
+    const cliClient = getCodexCLIClient({ timeout: cliTimeout });
+    if (!cliClient) {
+      throw new Error('Codex CLI not available');
+    }
+
+    const fullPrompt = `${ANALYSIS_SYSTEM_PROMPT}\n\n${analysisPrompt}\n\nRespond with valid JSON only.`;
+    const response = await cliClient.chat.completions.create({
+      model: GPT_MODEL,
+      messages: [{ role: 'user', content: fullPrompt }],
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content || content.trim().length === 0) {
+      throw new Error('Codex CLI response has empty content');
+    }
+    return content.trim();
+  };
+
+  // Define OpenCode request function (Tier 1: OpenCode CLI)
+  const opencodeRequest = async (): Promise<string> => {
+    const ocClient = getOpenCodeOpenAIClient({
+      model: getOpenCodeModel('openai'),
+      timeout: cliTimeout,
+    });
+    if (!ocClient) {
+      throw new Error('OpenCode CLI not available');
+    }
+
+    const fullPrompt = `${ANALYSIS_SYSTEM_PROMPT}\n\n${analysisPrompt}\n\nRespond with valid JSON only.`;
+    const response = await ocClient.chat.completions.create({
+      model: getOpenCodeModel('openai'),
+      messages: [{ role: 'user', content: fullPrompt }],
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content || content.trim().length === 0) {
+      throw new Error('OpenCode CLI response has empty content');
+    }
+    return content.trim();
+  };
+
+  // Route through fallback system
+  const routeResult = await routeLLMRequest(
+    apiRequest,
+    cliRequest,
+    opencodeRequest,
+    { provider: 'openai' }
   );
 
-  // Handle retry result
-  if (!result.success) {
-    logWarning(`${operationName}: Failed after ${result.attempts} attempts`);
-    // Use createSafeError to prevent API key exposure
-    const safeError = createSafeError(
-      `${operationName} (after ${result.attempts} attempts)`,
-      result.error
-    );
-    throw safeError;
-  }
+  logInfo(`${operationName}: Routed via ${routeResult.tier} (attempted: ${routeResult.tiersAttempted.join(', ')})`);
 
   // Parse and validate response
-  const analysis = parseGPTResponse(result.data);
+  const analysis = parseGPTResponse(routeResult.result);
   if (!analysis) {
     throw new Error(
       `${operationName}: Failed to parse response - invalid JSON or schema mismatch`

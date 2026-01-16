@@ -138,6 +138,30 @@ export type PostStyle = 'series' | 'variations';
  */
 export type SourceOption = 'web' | 'linkedin' | 'x' | 'googletrends';
 
+// ============================================
+// CLI Authentication Types
+// ============================================
+
+/**
+ * Client mode for LLM connections
+ * - 'opencode': OpenCode CLI with subscription auth (highest priority)
+ * - 'cli': Native CLI tools (claude, gemini, codex)
+ * - 'api': Direct API with API keys (fallback)
+ */
+export type ClientMode = 'opencode' | 'cli' | 'api';
+
+/**
+ * Result from fallback routing, indicating which tier was used
+ */
+export interface FallbackResult<T> {
+  /** The actual result from the LLM call */
+  result: T;
+  /** Which tier succeeded */
+  tier: ClientMode;
+  /** All tiers that were attempted (in order) */
+  tiersAttempted: ClientMode[];
+}
+
 /**
  * Pipeline configuration - parsed from CLI options
  */

@@ -15,7 +15,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { getApiKey } from '../config.js';
+import { getApiKey, getCLITimeoutMs } from '../config.js';
 import { withRetry, CRITICAL_RETRY_OPTIONS, TimeoutError } from '../utils/retry.js';
 import { logVerbose, logWarning, logInfo } from '../utils/logger.js';
 import { createSafeError, sanitizeErrorMessage } from '../utils/sanitization.js';
@@ -30,6 +30,8 @@ import type { GroundedClaim } from './claims.js';
 import type { PostStyle } from '../types/index.js';
 import type { PipelineConfig } from '../types/index.js';
 import type { SynthesizerFn, SynthesisOptions } from './types.js';
+import { routeLLMRequest } from '../llm/fallback-router.js';
+import { getClaudeCLIClient } from '../llm/claude-cli-wrapper.js';
 import {
   SYSTEM_PROMPT,
   buildSynthesisPrompt,
@@ -180,6 +182,193 @@ export interface ClaudeSynthesisResponse {
 }
 
 // ============================================
+// Raw Request Functions (for Fallback Router)
+// ============================================
+
+/**
+ * Response structure for raw Claude requests.
+ * Contains text response and usage data.
+ */
+interface ClaudeRawResponse {
+  text: string;
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+  };
+}
+
+/**
+ * Make raw Claude request via Anthropic API.
+ *
+ * This is the low-level API request used as Tier 3 (API fallback) in the router.
+ *
+ * @param synthesisPrompt - Synthesis prompt (without system prompt)
+ * @param maxTokens - Maximum tokens in response
+ * @param timeoutMs - Request timeout in milliseconds
+ * @returns Promise resolving to raw text response with usage
+ * @throws Error if API key is missing or request fails
+ */
+async function makeClaudeRequestViaAPI(
+  synthesisPrompt: string,
+  maxTokens: number,
+  timeoutMs: number
+): Promise<ClaudeRawResponse> {
+  const operationName = 'Claude API synthesis';
+
+  // Get client (validates API key)
+  const client = getAnthropicSynthesisClient();
+
+  // Make API request with retry logic and timeout enforcement
+  const result = await withRetry(
+    async () => {
+      // Create timeout promise for enforcement
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(
+          () => reject(new TimeoutError(`FATAL: ${operationName} timed out after ${timeoutMs}ms`, timeoutMs)),
+          timeoutMs
+        );
+      });
+
+      // Build the API request using Messages API
+      const apiPromise = client.messages.create({
+        model: CLAUDE_MODEL,
+        max_tokens: maxTokens,
+        system: SYSTEM_PROMPT,
+        messages: [
+          {
+            role: 'user',
+            content: synthesisPrompt,
+          },
+        ],
+      });
+
+      // Race between API call and timeout
+      const response = await Promise.race([apiPromise, timeoutPromise]);
+
+      // Extract text from Claude response
+      // Claude returns an array of content blocks
+      const textBlock = response.content.find((block) => block.type === 'text');
+      if (!textBlock || textBlock.type !== 'text') {
+        throw new Error('Claude synthesis response has no text content');
+      }
+
+      const content = textBlock.text;
+      if (!content || content.trim().length === 0) {
+        throw new Error('FATAL: Claude synthesis response has empty text');
+      }
+
+      // Return content with usage data
+      return {
+        text: content.trim(),
+        usage: response.usage,
+      };
+    },
+    {
+      ...CRITICAL_RETRY_OPTIONS,
+      operationName,
+    }
+  );
+
+  // Handle retry result
+  if (!result.success) {
+    logWarning(`${operationName}: Failed after ${result.attempts} attempts`);
+    const safeError = createSafeError(
+      `${operationName} (after ${result.attempts} attempts)`,
+      result.error
+    );
+    throw safeError;
+  }
+
+  return result.data;
+}
+
+/**
+ * Make Claude request via Claude CLI (Claude Max subscription).
+ *
+ * Uses the Claude CLI wrapper which provides an Anthropic SDK-compatible
+ * interface but routes through the CLI to use subscription authentication.
+ *
+ * Note: Claude has no OpenCode tier, so this is Tier 2 in the fallback chain.
+ *
+ * @param synthesisPrompt - Synthesis prompt (without system prompt)
+ * @param maxTokens - Maximum tokens in response
+ * @param timeoutMs - Request timeout in milliseconds
+ * @returns Promise resolving to raw text response with usage
+ * @throws CLIError if CLI is not available or request fails
+ */
+async function makeClaudeRequestViaCLI(
+  synthesisPrompt: string,
+  maxTokens: number,
+  timeoutMs: number
+): Promise<ClaudeRawResponse> {
+  const client = getClaudeCLIClient({
+    model: CLAUDE_MODEL,
+    timeout: timeoutMs,
+  });
+
+  if (!client) {
+    throw new Error('Claude CLI not available');
+  }
+
+  const response = await client.messages.create({
+    model: CLAUDE_MODEL,
+    max_tokens: maxTokens,
+    system: SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: synthesisPrompt }],
+  });
+
+  // Extract text from Claude response
+  const textBlock = response.content.find((block) => block.type === 'text');
+  if (!textBlock || textBlock.type !== 'text') {
+    throw new Error('Claude CLI response has no text content');
+  }
+
+  const text = textBlock.text;
+  if (!text || text.trim().length === 0) {
+    throw new Error('FATAL: Empty response from Claude CLI synthesis');
+  }
+
+  return {
+    text: text.trim(),
+    usage: response.usage,
+  };
+}
+
+/**
+ * Make Claude request with fallback routing (CLI -> API).
+ *
+ * Routes the request through the multi-tier fallback system.
+ * Note: Claude has no OpenCode tier, so it's CLI -> API only:
+ * - Tier 2: Claude CLI (if enabled and available)
+ * - Tier 3: Direct Anthropic API (fallback, per-token billing)
+ *
+ * @param synthesisPrompt - Synthesis prompt (without system prompt)
+ * @param maxTokens - Maximum tokens in response
+ * @param timeoutMs - Request timeout in milliseconds
+ * @returns Promise resolving to raw text response with usage
+ * @throws Error if all tiers fail
+ */
+async function makeClaudeRequestWithFallback(
+  synthesisPrompt: string,
+  maxTokens: number,
+  timeoutMs: number
+): Promise<ClaudeRawResponse> {
+  const cliTimeout = getCLITimeoutMs();
+  const effectiveTimeout = Math.max(timeoutMs, cliTimeout);
+
+  // Claude has no OpenCode tier, so we pass undefined for opencodeRequest
+  const result = await routeLLMRequest<ClaudeRawResponse>(
+    () => makeClaudeRequestViaAPI(synthesisPrompt, maxTokens, timeoutMs),     // Tier 3: API
+    () => makeClaudeRequestViaCLI(synthesisPrompt, maxTokens, effectiveTimeout), // Tier 2: CLI
+    undefined, // No OpenCode tier for Claude
+    { provider: 'anthropic' }
+  );
+
+  logInfo(`Claude synthesis routed via ${result.tier} (attempted: ${result.tiersAttempted.join(' -> ')})`);
+  return result.result;
+}
+
+// ============================================
 // Main Synthesizer
 // ============================================
 
@@ -238,76 +427,22 @@ export const synthesizeWithClaude: SynthesizerFn = async (
 
   logInfo(`${operationName}: Generating post with ${claims.length} claims`);
 
-  // Get client (validates API key)
-  const client = getAnthropicSynthesisClient();
-
   // Build prompt based on post count
   const isMultiPost = postCount > 1;
   const synthesisPrompt = isMultiPost
     ? buildMultiPostPrompt(claims, prompt, postCount, postStyle)
     : buildSynthesisPrompt(claims, prompt);
 
-  // Make API request with retry logic and timeout enforcement
-  const result = await withRetry(
-    async () => {
-      // Create timeout promise for enforcement
-      // MAJ-9: Include FATAL prefix on timeout errors
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(
-          () => reject(new TimeoutError(`FATAL: ${operationName} timed out after ${timeoutMs}ms`, timeoutMs)),
-          timeoutMs
-        );
-      });
-
-      // Build the API request using Messages API
-      const apiPromise = client.messages.create({
-        model: CLAUDE_MODEL,
-        max_tokens: maxTokens,
-        system: SYSTEM_PROMPT,
-        messages: [
-          {
-            role: 'user',
-            content: synthesisPrompt,
-          },
-        ],
-      });
-
-      // Race between API call and timeout
-      const response = await Promise.race([apiPromise, timeoutPromise]);
-
-      // Extract text from Claude response
-      // Claude returns an array of content blocks
-      const textBlock = response.content.find((block) => block.type === 'text');
-      if (!textBlock || textBlock.type !== 'text') {
-        throw new Error('Claude synthesis response has no text content');
-      }
-
-      const content = textBlock.text;
-      // MIN-4: Include FATAL prefix on empty response
-      if (!content || content.trim().length === 0) {
-        throw new Error('FATAL: Claude synthesis response has empty text');
-      }
-
-      // Return content with usage data
-      return {
-        text: content.trim(),
-        usage: response.usage,
-      };
-    },
-    {
-      ...CRITICAL_RETRY_OPTIONS,
-      operationName,
+  // Make request with fallback routing (CLI -> API)
+  let rawResponse: ClaudeRawResponse;
+  try {
+    rawResponse = await makeClaudeRequestWithFallback(synthesisPrompt, maxTokens, timeoutMs);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.startsWith('FATAL:')) {
+      throw new Error(`FATAL: ${operationName} failed - ${sanitizeErrorMessage(message)}`);
     }
-  );
-
-  // Handle retry result
-  if (!result.success) {
-    logWarning(`${operationName}: Failed after ${result.attempts} attempts`);
-    const safeError = createSafeError(
-      `${operationName} (after ${result.attempts} attempts)`,
-      result.error
-    );
-    throw safeError;
+    throw error;
   }
 
   // Parse response based on mode
@@ -316,12 +451,12 @@ export const synthesizeWithClaude: SynthesizerFn = async (
   try {
     if (isMultiPost) {
       // Parse multi-post response, then convert to SynthesisResult
-      const multiPost = parseMultiPostResponse(result.data.text);
+      const multiPost = parseMultiPostResponse(rawResponse.text);
       // Create minimal config for conversion
       const minimalConfig = { postStyle, postCount } as PipelineConfig;
       parsedResult = convertMultiPostToSynthesisResult(multiPost, prompt, minimalConfig);
     } else {
-      parsedResult = parseSynthesisResponse(result.data.text);
+      parsedResult = parseSynthesisResponse(rawResponse.text);
       // Update with actual prompt (parser returns placeholder)
       parsedResult = { ...parsedResult, prompt };
     }
@@ -336,6 +471,9 @@ export const synthesizeWithClaude: SynthesizerFn = async (
 
     // On fixable parse error (JSON syntax): retry once with fix prompt
     logWarning(`${operationName}: Initial parse failed (JSON error), attempting fix with retry...`);
+
+    // Get client for retry (validates API key)
+    const client = getAnthropicSynthesisClient();
 
     const fixResult = await retryWithFixPrompt(
       async (fixPrompt: string) => {
@@ -354,7 +492,7 @@ export const synthesizeWithClaude: SynthesizerFn = async (
         return textBlock.text;
       },
       SynthesisResultSchema,
-      result.data.text,
+      rawResponse.text,
       synthesisPrompt
     );
 
@@ -374,16 +512,16 @@ export const synthesizeWithClaude: SynthesizerFn = async (
 
   // Extract usage from response and log it (no longer returned)
   const usage = {
-    promptTokens: result.data.usage.input_tokens,
-    completionTokens: result.data.usage.output_tokens,
-    totalTokens: result.data.usage.input_tokens + result.data.usage.output_tokens,
+    promptTokens: rawResponse.usage.input_tokens,
+    completionTokens: rawResponse.usage.output_tokens,
+    totalTokens: rawResponse.usage.input_tokens + rawResponse.usage.output_tokens,
   };
 
   // Calculate and log cost for transparency
   const cost = calculateClaudeSynthesisCost(usage);
   logVerbose(
     `${operationName}: Generated ${parsedResult.linkedinPost.length} char post, ` +
-      `${usage.totalTokens} tokens (cost: $${cost.toFixed(4)}), ${result.attempts} attempt(s)`
+      `${usage.totalTokens} tokens (cost: $${cost.toFixed(4)})`
   );
 
   // Return SynthesisResult directly per SynthesizerFn interface

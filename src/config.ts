@@ -33,6 +33,21 @@ export const ENV_KEYS = {
   SCRAPECREATORS_API_KEY: 'SCRAPECREATORS_API_KEY',
   OPENROUTER_API_KEY: 'OPENROUTER_API_KEY',
   ANTHROPIC_API_KEY: 'ANTHROPIC_API_KEY',
+  // CLI Mode toggles
+  USE_OPENCODE: 'USE_OPENCODE',
+  USE_CLAUDE_CLI: 'USE_CLAUDE_CLI',
+  USE_GEMINI_CLI: 'USE_GEMINI_CLI',
+  USE_CODEX_CLI: 'USE_CODEX_CLI',
+  // CLI paths (optional)
+  OPENCODE_CLI_PATH: 'OPENCODE_CLI_PATH',
+  CLAUDE_CLI_PATH: 'CLAUDE_CLI_PATH',
+  GEMINI_CLI_PATH: 'GEMINI_CLI_PATH',
+  CODEX_CLI_PATH: 'CODEX_CLI_PATH',
+  // OpenCode model config
+  OPENCODE_GEMINI_MODEL: 'OPENCODE_GEMINI_MODEL',
+  OPENCODE_OPENAI_MODEL: 'OPENCODE_OPENAI_MODEL',
+  // CLI timeout
+  CLI_TIMEOUT_SECONDS: 'CLI_TIMEOUT_SECONDS',
 } as const;
 
 /**
@@ -70,6 +85,39 @@ export function getApiKey(key: keyof typeof ENV_KEYS): string | undefined {
 export function hasApiKey(key: keyof typeof ENV_KEYS): boolean {
   const value = getApiKey(key);
   return value !== undefined && value.trim().length > 0;
+}
+
+// ============================================
+// CLI Mode Helpers
+// ============================================
+
+/**
+ * Check if a CLI mode is enabled via environment variable.
+ * @param envKey - The environment variable name
+ * @param defaultValue - Default if not set (usually true for CLI modes)
+ */
+export function isCLIModeEnabled(envKey: keyof typeof ENV_KEYS, defaultValue = true): boolean {
+  const value = process.env[ENV_KEYS[envKey]];
+  if (value === undefined || value === '') return defaultValue;
+  return value.toLowerCase() === 'true' || value === '1';
+}
+
+/**
+ * Get CLI timeout in milliseconds
+ */
+export function getCLITimeoutMs(): number {
+  const seconds = parseInt(process.env.CLI_TIMEOUT_SECONDS || '300', 10);
+  return isNaN(seconds) ? 300000 : seconds * 1000;
+}
+
+/**
+ * Get OpenCode model for a provider
+ */
+export function getOpenCodeModel(provider: 'gemini' | 'openai'): string {
+  if (provider === 'gemini') {
+    return process.env.OPENCODE_GEMINI_MODEL || 'gemini-3-pro-preview';
+  }
+  return process.env.OPENCODE_OPENAI_MODEL || 'gpt-5.2';
 }
 
 // ============================================
@@ -116,10 +164,20 @@ export function validateApiKeys(options: SourceOption[] | ValidateApiKeysOptions
   const missing: string[] = [];
   const warnings: string[] = [];
 
+  // Check CLI modes - skip API key validation when CLI mode is enabled
+  const useOpenCode = isCLIModeEnabled('USE_OPENCODE', false);
+  const useClaudeCLI = isCLIModeEnabled('USE_CLAUDE_CLI', true);
+  const useGeminiCLI = isCLIModeEnabled('USE_GEMINI_CLI', true);
+  const useCodexCLI = isCLIModeEnabled('USE_CODEX_CLI', true);
+
   // Check always-required keys
   for (const key of REQUIRED_KEYS) {
-    // Skip GOOGLE_AI_API_KEY check if using kimi2 for scoring
-    if (key === 'GOOGLE_AI_API_KEY' && scoringModel === 'kimi2') {
+    // Skip GOOGLE_AI_API_KEY check if using kimi2 for scoring or CLI mode enabled
+    if (key === 'GOOGLE_AI_API_KEY' && (scoringModel === 'kimi2' || useGeminiCLI || useOpenCode)) {
+      continue;
+    }
+    // Skip OPENAI_API_KEY check if CLI mode enabled
+    if (key === 'OPENAI_API_KEY' && (useCodexCLI || useOpenCode)) {
       continue;
     }
     if (!hasApiKey(key)) {
@@ -150,9 +208,9 @@ export function validateApiKeys(options: SourceOption[] | ValidateApiKeysOptions
     }
   }
 
-  // Check Anthropic key if using claude for refinement
+  // Check Anthropic key if using claude for refinement (skip if using Claude CLI)
   const refinementModel = Array.isArray(options) ? undefined : options.refinementModel;
-  if (refinementModel === 'claude') {
+  if (refinementModel === 'claude' && !useClaudeCLI) {
     if (!hasApiKey('ANTHROPIC_API_KEY')) {
       missing.push(ENV_KEYS.ANTHROPIC_API_KEY);
     }
@@ -168,8 +226,8 @@ export function validateApiKeys(options: SourceOption[] | ValidateApiKeysOptions
   // Check for synthesis model API keys
   const synthesisModel = Array.isArray(options) ? 'gpt' : (options.synthesisModel ?? 'gpt');
 
-  // Claude synthesis requires ANTHROPIC_API_KEY (only add if not already checked for refinement)
-  if (synthesisModel === 'claude' && refinementModel !== 'claude') {
+  // Claude synthesis requires ANTHROPIC_API_KEY (skip if using Claude CLI, only add if not already checked for refinement)
+  if (synthesisModel === 'claude' && refinementModel !== 'claude' && !useClaudeCLI) {
     if (!hasApiKey('ANTHROPIC_API_KEY')) {
       missing.push(ENV_KEYS.ANTHROPIC_API_KEY);
     }

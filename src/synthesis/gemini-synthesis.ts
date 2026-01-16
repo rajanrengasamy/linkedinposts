@@ -14,7 +14,7 @@
  */
 
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
-import { getApiKey } from '../config.js';
+import { getApiKey, getCLITimeoutMs, getOpenCodeModel } from '../config.js';
 import { withRetry, CRITICAL_RETRY_OPTIONS, TimeoutError } from '../utils/retry.js';
 import { logVerbose, logWarning, logInfo } from '../utils/logger.js';
 import { createSafeError, sanitizeErrorMessage } from '../utils/sanitization.js';
@@ -23,6 +23,9 @@ import type { SynthesisResult } from '../schemas/index.js';
 import type { GroundedClaim } from './claims.js';
 import type { PipelineConfig, PostStyle } from '../types/index.js';
 import type { SynthesizerFn, SynthesisOptions } from './types.js';
+import { routeLLMRequest } from '../llm/fallback-router.js';
+import { getGeminiCLIClient } from '../llm/gemini-cli-wrapper.js';
+import { getOpenCodeGoogleClient } from '../llm/opencode-wrapper.js';
 import {
   SYSTEM_PROMPT,
   buildSynthesisPrompt,
@@ -100,6 +103,204 @@ export interface GeminiSynthesisResponse {
 }
 
 // ============================================
+// Raw Request Functions (for Fallback Router)
+// ============================================
+
+/**
+ * Response structure for raw Gemini requests.
+ * Contains just the text response, used by fallback router.
+ */
+interface GeminiRawResponse {
+  text: string;
+}
+
+/**
+ * Make raw Gemini request via Google GenAI API.
+ *
+ * This is the low-level API request used as Tier 3 (API fallback) in the router.
+ *
+ * @param fullPrompt - Complete prompt including system prompt
+ * @param timeoutMs - Request timeout in milliseconds
+ * @returns Promise resolving to raw text response
+ * @throws Error if API key is missing or request fails
+ */
+async function makeGeminiRequestViaAPI(
+  fullPrompt: string,
+  timeoutMs: number
+): Promise<GeminiRawResponse> {
+  const operationName = 'Gemini API synthesis';
+
+  // Get API key (validates it exists)
+  const apiKey = getApiKey('GOOGLE_AI_API_KEY');
+  if (!apiKey) {
+    throw new Error(
+      'FATAL: GOOGLE_AI_API_KEY is required for Gemini synthesis. ' +
+        'Please set it in your .env file or environment.'
+    );
+  }
+
+  // Initialize Gemini client
+  const client = new GoogleGenAI({ apiKey });
+
+  // Make API request with retry logic and timeout enforcement
+  const result = await withRetry(
+    async () => {
+      // Create timeout promise for enforcement
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(
+          () => reject(new TimeoutError(`FATAL: ${operationName} timed out after ${timeoutMs}ms`, timeoutMs)),
+          timeoutMs
+        );
+      });
+
+      // Build the API request with thinking config
+      const apiPromise = client.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: fullPrompt,
+        config: {
+          thinkingConfig: {
+            thinkingLevel: THINKING_LEVEL,
+          },
+        },
+      });
+
+      // Race between API call and timeout
+      const response = await Promise.race([apiPromise, timeoutPromise]);
+
+      // Extract text from response
+      const text = response.text;
+      if (!text || text.trim().length === 0) {
+        throw new Error('FATAL: Empty response from Gemini synthesis');
+      }
+
+      return { text };
+    },
+    {
+      ...CRITICAL_RETRY_OPTIONS,
+      operationName,
+    }
+  );
+
+  // Handle retry result
+  if (!result.success) {
+    logWarning(`${operationName}: Failed after ${result.attempts} attempts`);
+    const safeError = createSafeError(
+      `${operationName} (after ${result.attempts} attempts)`,
+      result.error
+    );
+    throw safeError;
+  }
+
+  return result.data;
+}
+
+/**
+ * Make Gemini request via Gemini CLI (Gemini Ultra subscription).
+ *
+ * Uses the Gemini CLI wrapper which provides a Google GenAI SDK-compatible
+ * interface but routes through the CLI to use subscription authentication.
+ *
+ * @param fullPrompt - Complete prompt including system prompt
+ * @param timeoutMs - Request timeout in milliseconds
+ * @returns Promise resolving to raw text response
+ * @throws CLIError if CLI is not available or request fails
+ */
+async function makeGeminiRequestViaCLI(
+  fullPrompt: string,
+  timeoutMs: number
+): Promise<GeminiRawResponse> {
+  const client = getGeminiCLIClient({
+    model: GEMINI_MODEL,
+    timeout: timeoutMs,
+  });
+
+  if (!client) {
+    throw new Error('Gemini CLI not available');
+  }
+
+  const response = await client.models.generateContent({
+    model: GEMINI_MODEL,
+    contents: fullPrompt,
+  });
+
+  const text = response.text;
+  if (!text || text.trim().length === 0) {
+    throw new Error('FATAL: Empty response from Gemini CLI synthesis');
+  }
+
+  return { text };
+}
+
+/**
+ * Make Gemini request via OpenCode CLI.
+ *
+ * Uses the OpenCode CLI wrapper which provides access to Google models
+ * through OpenCode's subscription-based authentication via plugins.
+ * This is the highest priority tier in the fallback chain.
+ *
+ * @param fullPrompt - Complete prompt including system prompt
+ * @param timeoutMs - Request timeout in milliseconds
+ * @returns Promise resolving to raw text response
+ * @throws CLIError if CLI is not available or request fails
+ */
+async function makeGeminiRequestViaOpenCode(
+  fullPrompt: string,
+  timeoutMs: number
+): Promise<GeminiRawResponse> {
+  const client = getOpenCodeGoogleClient({
+    model: getOpenCodeModel('gemini'),
+    timeout: timeoutMs,
+  });
+
+  if (!client) {
+    throw new Error('OpenCode CLI not available');
+  }
+
+  const response = await client.models.generateContent({
+    model: getOpenCodeModel('gemini'),
+    contents: fullPrompt,
+  });
+
+  const text = response.text;
+  if (!text || text.trim().length === 0) {
+    throw new Error('FATAL: Empty response from OpenCode Gemini synthesis');
+  }
+
+  return { text };
+}
+
+/**
+ * Make Gemini request with fallback routing (OpenCode -> CLI -> API).
+ *
+ * Routes the request through the multi-tier fallback system:
+ * - Tier 1: OpenCode CLI (if enabled and available)
+ * - Tier 2: Gemini CLI (if enabled and available)
+ * - Tier 3: Direct Google AI API (fallback, per-token billing)
+ *
+ * @param fullPrompt - Complete prompt including system prompt
+ * @param timeoutMs - Request timeout in milliseconds
+ * @returns Promise resolving to raw text response
+ * @throws Error if all tiers fail
+ */
+async function makeGeminiRequestWithFallback(
+  fullPrompt: string,
+  timeoutMs: number
+): Promise<GeminiRawResponse> {
+  const cliTimeout = getCLITimeoutMs();
+  const effectiveTimeout = Math.max(timeoutMs, cliTimeout);
+
+  const result = await routeLLMRequest<GeminiRawResponse>(
+    () => makeGeminiRequestViaAPI(fullPrompt, timeoutMs),           // Tier 3: API
+    () => makeGeminiRequestViaCLI(fullPrompt, effectiveTimeout),    // Tier 2: CLI
+    () => makeGeminiRequestViaOpenCode(fullPrompt, effectiveTimeout), // Tier 1: OpenCode
+    { provider: 'gemini' }
+  );
+
+  logInfo(`Gemini synthesis routed via ${result.tier} (attempted: ${result.tiersAttempted.join(' -> ')})`);
+  return result.result;
+}
+
+// ============================================
 // Main Synthesizer
 // ============================================
 
@@ -112,6 +313,7 @@ export interface GeminiSynthesisResponse {
  *
  * Features:
  * - Gemini 3 Flash with thinking for quality reasoning
+ * - Multi-tier fallback (OpenCode -> CLI -> API)
  * - Timeout enforcement with Promise.race pattern
  * - Retry with CRITICAL_RETRY_OPTIONS for resilience
  * - Error sanitization to prevent API key exposure
@@ -159,78 +361,28 @@ export const synthesizeWithGemini: SynthesizerFn = async (
 
   logInfo(`${operationName}: Generating post with ${claims.length} claims`);
 
-  // Get API key (validates it exists)
-  const apiKey = getApiKey('GOOGLE_AI_API_KEY');
-  if (!apiKey) {
-    throw new Error(
-      'FATAL: GOOGLE_AI_API_KEY is required for Gemini synthesis. ' +
-        'Please set it in your .env file or environment.'
-    );
-  }
-
-  // Initialize Gemini client
-  const client = new GoogleGenAI({ apiKey });
-
   // Build prompt based on post count
   const isMultiPost = postCount > 1;
   const synthesisPrompt = isMultiPost
     ? buildMultiPostPrompt(claims, prompt, postCount, postStyle)
     : buildSynthesisPrompt(claims, prompt);
 
+  // Build full prompt with system prompt prepended
+  const fullPrompt = `${SYSTEM_PROMPT}\n\n${synthesisPrompt}`;
+
   // Estimate input tokens (rough estimate: ~4 chars per token)
   const estimatedInputTokens = Math.ceil(synthesisPrompt.length / 4);
 
-  // Make API request with retry logic and timeout enforcement
-  const result = await withRetry(
-    async () => {
-      // Create timeout promise for enforcement
-      // MAJ-9: Include FATAL prefix in timeout error for consistency
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(
-          () => reject(new TimeoutError(`FATAL: ${operationName} timed out after ${timeoutMs}ms`, timeoutMs)),
-          timeoutMs
-        );
-      });
-
-      // Build the API request with thinking config
-      // System prompt is prepended to contents for Gemini 3 compatibility
-      const fullPrompt = `${SYSTEM_PROMPT}\n\n${synthesisPrompt}`;
-      const apiPromise = client.models.generateContent({
-        model: GEMINI_MODEL,
-        contents: fullPrompt,
-        config: {
-          thinkingConfig: {
-            thinkingLevel: THINKING_LEVEL,
-          },
-        },
-      });
-
-      // Race between API call and timeout
-      const response = await Promise.race([apiPromise, timeoutPromise]);
-
-      // Extract text from response
-      // MIN-4: Include FATAL prefix for empty response error
-      const text = response.text;
-      if (!text || text.trim().length === 0) {
-        throw new Error('FATAL: Empty response from Gemini synthesis');
-      }
-
-      return text;
-    },
-    {
-      ...CRITICAL_RETRY_OPTIONS,
-      operationName,
+  // Make request with fallback routing
+  let rawResponse: GeminiRawResponse;
+  try {
+    rawResponse = await makeGeminiRequestWithFallback(fullPrompt, timeoutMs);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.startsWith('FATAL:')) {
+      throw new Error(`FATAL: ${operationName} failed - ${sanitizeErrorMessage(message)}`);
     }
-  );
-
-  // Handle retry result
-  if (!result.success) {
-    logWarning(`${operationName}: Failed after ${result.attempts} attempts`);
-    const safeError = createSafeError(
-      `${operationName} (after ${result.attempts} attempts)`,
-      result.error
-    );
-    throw safeError;
+    throw error;
   }
 
   // Parse response based on mode
@@ -240,13 +392,13 @@ export const synthesizeWithGemini: SynthesizerFn = async (
   try {
     if (isMultiPost) {
       // Parse multi-post response, then convert to SynthesisResult
-      const multiPost = parseMultiPostResponse(result.data);
+      const multiPost = parseMultiPostResponse(rawResponse.text);
       // Create minimal config for conversion
       const minimalConfig = { postStyle, postCount } as PipelineConfig;
       parsedResult = convertMultiPostToSynthesisResult(multiPost, prompt, minimalConfig);
     } else {
       // Use parseWithRetry which handles fixable vs unfixable errors
-      parsedResult = await parseWithRetry(result.data);
+      parsedResult = await parseWithRetry(rawResponse.text);
       // Update with actual prompt (parser returns placeholder)
       parsedResult = { ...parsedResult, prompt };
     }
@@ -262,13 +414,13 @@ export const synthesizeWithGemini: SynthesizerFn = async (
   validateOutputConstraints(parsedResult, allowedSourceUrls);
 
   // Estimate output tokens
-  const estimatedOutputTokens = Math.ceil(result.data.length / 4);
+  const estimatedOutputTokens = Math.ceil(rawResponse.text.length / 4);
   const totalTokens = estimatedInputTokens + estimatedOutputTokens;
 
   // Log usage data for cost tracking (instead of returning it)
   logVerbose(
     `${operationName}: Generated ${parsedResult.linkedinPost.length} char post, ` +
-      `${result.attempts} attempt(s), ~${totalTokens} tokens (${estimatedInputTokens} in, ${estimatedOutputTokens} out)`
+      `~${totalTokens} tokens (${estimatedInputTokens} in, ${estimatedOutputTokens} out)`
   );
 
   // Return SynthesisResult directly (conforms to SynthesizerFn interface)

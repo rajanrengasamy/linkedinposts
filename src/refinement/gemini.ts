@@ -13,14 +13,17 @@
  */
 
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
-import { getApiKey } from '../config.js';
+import { getApiKey, isCLIModeEnabled, getCLITimeoutMs, getOpenCodeModel } from '../config.js';
 import { withRetry, QUICK_RETRY_OPTIONS, TimeoutError } from '../utils/retry.js';
-import { logVerbose, logWarning } from '../utils/logger.js';
+import { logVerbose, logWarning, logInfo } from '../utils/logger.js';
 import { createSafeError } from '../utils/sanitization.js';
 import { STAGE_TIMEOUT_MS } from '../types/index.js';
 import { PromptAnalysisSchema } from './schemas.js';
 import { buildAnalysisPrompt, ANALYSIS_SYSTEM_PROMPT } from './prompts.js';
 import type { PromptAnalysis, RefinementConfig } from './types.js';
+import { routeLLMRequest } from '../llm/fallback-router.js';
+import { getGeminiCLIClient } from '../llm/gemini-cli-wrapper.js';
+import { getOpenCodeGoogleClient } from '../llm/opencode-wrapper.js';
 
 // ============================================
 // Constants
@@ -122,79 +125,115 @@ export async function analyzeWithGemini(
   config: RefinementConfig
 ): Promise<PromptAnalysis> {
   const timeout = config.timeoutMs ?? STAGE_TIMEOUT_MS;
+  const cliTimeout = getCLITimeoutMs();
   const operationName = 'Gemini prompt analysis';
 
   logVerbose(`${operationName}: Analyzing prompt (${prompt.length} chars)`);
 
-  // Get API key (validates it exists)
-  const apiKey = getApiKey('GOOGLE_AI_API_KEY');
-  if (!apiKey) {
-    throw new Error(
-      'GOOGLE_AI_API_KEY is required for prompt refinement. ' +
-        'Please set it in your .env file or environment.'
-    );
-  }
-
-  // Initialize Gemini client
-  const client = new GoogleGenAI({ apiKey });
-
   // Build the analysis prompt (function only needs the prompt)
   const analysisPrompt = buildAnalysisPrompt(prompt);
+  const fullPrompt = `${ANALYSIS_SYSTEM_PROMPT}\n\n${analysisPrompt}\n\nRespond with valid JSON only.`;
 
-  // Make API request with retry logic and timeout enforcement
-  const result = await withRetry(
-    async () => {
-      // Create timeout promise for enforcement
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(
-          () => reject(new TimeoutError(`${operationName} timed out after ${timeout}ms`, timeout)),
-          timeout
-        );
-      });
-
-      // Build the API request with thinking config (matching scoring pattern)
-      // System prompt is prepended to contents for Gemini 3 compatibility
-      const fullPrompt = `${ANALYSIS_SYSTEM_PROMPT}\n\n${analysisPrompt}`;
-      const apiPromise = client.models.generateContent({
-        model: REFINEMENT_MODEL,
-        contents: fullPrompt,
-        config: {
-          thinkingConfig: {
-            thinkingLevel: REFINEMENT_THINKING_LEVEL,
-          },
-        },
-      });
-
-      // Race between API call and timeout
-      const response = await Promise.race([apiPromise, timeoutPromise]);
-
-      // Extract text from response
-      const text = response.text;
-      if (!text || text.trim().length === 0) {
-        throw new Error('Empty response from Gemini prompt analysis');
-      }
-
-      return text;
-    },
-    {
-      ...QUICK_RETRY_OPTIONS,
-      operationName,
+  // Define API request function (Tier 3: Direct API)
+  const apiRequest = async (): Promise<string> => {
+    const apiKey = getApiKey('GOOGLE_AI_API_KEY');
+    if (!apiKey) {
+      throw new Error(
+        'GOOGLE_AI_API_KEY is required for prompt refinement. ' +
+          'Please set it in your .env file or environment.'
+      );
     }
+
+    const client = new GoogleGenAI({ apiKey });
+
+    const result = await withRetry(
+      async () => {
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(
+            () => reject(new TimeoutError(`${operationName} timed out after ${timeout}ms`, timeout)),
+            timeout
+          );
+        });
+
+        const apiPromise = client.models.generateContent({
+          model: REFINEMENT_MODEL,
+          contents: fullPrompt,
+          config: {
+            thinkingConfig: {
+              thinkingLevel: REFINEMENT_THINKING_LEVEL,
+            },
+          },
+        });
+
+        const response = await Promise.race([apiPromise, timeoutPromise]);
+        const text = response.text;
+        if (!text || text.trim().length === 0) {
+          throw new Error('Empty response from Gemini prompt analysis');
+        }
+        return text;
+      },
+      { ...QUICK_RETRY_OPTIONS, operationName }
+    );
+
+    if (!result.success) {
+      throw createSafeError(`${operationName} (after ${result.attempts} attempts)`, result.error);
+    }
+    return result.data;
+  };
+
+  // Define CLI request function (Tier 2: Gemini CLI)
+  const cliRequest = async (): Promise<string> => {
+    const cliClient = getGeminiCLIClient({ timeout: cliTimeout });
+    if (!cliClient) {
+      throw new Error('Gemini CLI not available');
+    }
+
+    const response = await cliClient.models.generateContent({
+      model: REFINEMENT_MODEL,
+      contents: fullPrompt,
+    });
+
+    const text = response.text;
+    if (!text || text.trim().length === 0) {
+      throw new Error('Gemini CLI response has empty content');
+    }
+    return text;
+  };
+
+  // Define OpenCode request function (Tier 1: OpenCode CLI)
+  const opencodeRequest = async (): Promise<string> => {
+    const ocClient = getOpenCodeGoogleClient({
+      model: getOpenCodeModel('gemini'),
+      timeout: cliTimeout,
+    });
+    if (!ocClient) {
+      throw new Error('OpenCode CLI not available');
+    }
+
+    const response = await ocClient.models.generateContent({
+      model: getOpenCodeModel('gemini'),
+      contents: fullPrompt,
+    });
+
+    const text = response.text;
+    if (!text || text.trim().length === 0) {
+      throw new Error('OpenCode CLI response has empty content');
+    }
+    return text;
+  };
+
+  // Route through fallback system
+  const routeResult = await routeLLMRequest(
+    apiRequest,
+    cliRequest,
+    opencodeRequest,
+    { provider: 'gemini' }
   );
 
-  // Handle retry result
-  if (!result.success) {
-    logWarning(`${operationName}: Failed after ${result.attempts} attempts`);
-    // Use createSafeError to prevent API key exposure
-    const safeError = createSafeError(
-      `${operationName} (after ${result.attempts} attempts)`,
-      result.error
-    );
-    throw safeError;
-  }
+  logInfo(`${operationName}: Routed via ${routeResult.tier} (attempted: ${routeResult.tiersAttempted.join(', ')})`);
 
   // Parse and validate response
-  const analysis = parseGeminiResponse(result.data);
+  const analysis = parseGeminiResponse(routeResult.result);
   if (!analysis) {
     throw new Error(
       `${operationName}: Failed to parse response - invalid JSON or schema mismatch`

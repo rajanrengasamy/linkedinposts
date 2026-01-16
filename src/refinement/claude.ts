@@ -13,14 +13,16 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { getApiKey } from '../config.js';
+import { getApiKey, isCLIModeEnabled, getCLITimeoutMs } from '../config.js';
 import { withRetry, CRITICAL_RETRY_OPTIONS, TimeoutError } from '../utils/retry.js';
 import { createSafeError } from '../utils/sanitization.js';
-import { logVerbose, logWarning } from '../utils/logger.js';
+import { logVerbose, logWarning, logInfo } from '../utils/logger.js';
 import { STAGE_TIMEOUT_MS } from '../types/index.js';
 import { PromptAnalysisSchema } from './schemas.js';
 import { buildAnalysisPrompt, ANALYSIS_SYSTEM_PROMPT } from './prompts.js';
 import type { PromptAnalysis, RefinementConfig } from './types.js';
+import { routeLLMRequest } from '../llm/fallback-router.js';
+import { getClaudeCLIClient } from '../llm/claude-cli-wrapper.js';
 
 // ============================================
 // Constants
@@ -196,76 +198,104 @@ export async function analyzeWithClaude(
   config: RefinementConfig
 ): Promise<PromptAnalysis> {
   const timeout = config.timeoutMs ?? STAGE_TIMEOUT_MS;
+  const cliTimeout = getCLITimeoutMs();
   const operationName = 'Claude prompt analysis';
 
   logVerbose(`${operationName}: Analyzing prompt (${prompt.length} chars)`);
 
-  // Get client (validates API key)
-  const client = getAnthropicClient();
-
   // Build the analysis prompt
   const analysisPrompt = buildAnalysisPrompt(prompt);
 
-  // Make API request with retry logic and timeout enforcement
-  const result = await withRetry(
-    async () => {
-      // Create timeout promise for enforcement
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(
-          () => reject(new TimeoutError(`${operationName} timed out after ${timeout}ms`, timeout)),
-          timeout
-        );
-      });
+  // Define API request function (Tier 3: Direct API)
+  const apiRequest = async (): Promise<string> => {
+    const client = getAnthropicClient();
 
-      // Build the API request using Messages API
-      const apiPromise = client.messages.create({
-        model: CLAUDE_MODEL,
-        max_tokens: MAX_TOKENS,
-        system: ANALYSIS_SYSTEM_PROMPT,
-        messages: [
-          {
-            role: 'user',
-            content: analysisPrompt,
-          },
-        ],
-      });
+    const result = await withRetry(
+      async () => {
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(
+            () => reject(new TimeoutError(`${operationName} timed out after ${timeout}ms`, timeout)),
+            timeout
+          );
+        });
 
-      // Race between API call and timeout
-      const response = await Promise.race([apiPromise, timeoutPromise]);
+        const apiPromise = client.messages.create({
+          model: CLAUDE_MODEL,
+          max_tokens: MAX_TOKENS,
+          system: ANALYSIS_SYSTEM_PROMPT,
+          messages: [
+            {
+              role: 'user',
+              content: analysisPrompt,
+            },
+          ],
+        });
 
-      // Extract content from Claude response
-      // Claude returns an array of content blocks
-      const textBlock = response.content.find((block) => block.type === 'text');
-      if (!textBlock || textBlock.type !== 'text') {
-        throw new Error('Claude prompt analysis response has no text content');
-      }
+        const response = await Promise.race([apiPromise, timeoutPromise]);
+        const textBlock = response.content.find((block) => block.type === 'text');
+        if (!textBlock || textBlock.type !== 'text') {
+          throw new Error('Claude prompt analysis response has no text content');
+        }
 
-      const content = textBlock.text;
-      if (!content || content.trim().length === 0) {
-        throw new Error('Claude prompt analysis response has empty text');
-      }
+        const content = textBlock.text;
+        if (!content || content.trim().length === 0) {
+          throw new Error('Claude prompt analysis response has empty text');
+        }
+        return content.trim();
+      },
+      { ...CRITICAL_RETRY_OPTIONS, operationName }
+    );
 
-      return content.trim();
-    },
-    {
-      ...CRITICAL_RETRY_OPTIONS,
-      operationName,
+    if (!result.success) {
+      throw createSafeError(`${operationName} (after ${result.attempts} attempts)`, result.error);
     }
+    return result.data;
+  };
+
+  // Define CLI request function (Tier 2: Claude CLI)
+  const cliRequest = async (): Promise<string> => {
+    const cliClient = getClaudeCLIClient({ timeout: cliTimeout });
+    if (!cliClient) {
+      throw new Error('Claude CLI not available');
+    }
+
+    const response = await cliClient.messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: MAX_TOKENS,
+      system: ANALYSIS_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: 'user',
+          content: `${analysisPrompt}\n\nRespond with valid JSON only.`,
+        },
+      ],
+    });
+
+    const textBlock = response.content.find((block) => block.type === 'text');
+    if (!textBlock || textBlock.type !== 'text' || !textBlock.text) {
+      throw new Error('Claude CLI response has no text content');
+    }
+
+    const content = textBlock.text;
+    if (content.trim().length === 0) {
+      throw new Error('Claude CLI response has empty text');
+    }
+    return content.trim();
+  };
+
+  // Route through fallback system
+  // Note: Claude has no OpenCode tier, so we pass undefined for opencodeRequest
+  const routeResult = await routeLLMRequest(
+    apiRequest,
+    cliRequest,
+    undefined, // No OpenCode tier for Claude
+    { provider: 'anthropic' }
   );
 
-  // Handle retry result
-  if (!result.success) {
-    logWarning(`${operationName}: Failed after ${result.attempts} attempts`);
-    // Use createSafeError to prevent API key exposure
-    const safeError = createSafeError(
-      `${operationName} (after ${result.attempts} attempts)`,
-      result.error
-    );
-    throw safeError;
-  }
+  logInfo(`${operationName}: Routed via ${routeResult.tier} (attempted: ${routeResult.tiersAttempted.join(', ')})`);
 
   // Parse and validate response
-  const analysis = parseClaudeResponse(result.data);
+  const analysis = parseClaudeResponse(routeResult.result);
   if (!analysis) {
     throw new Error(
       `${operationName}: Failed to parse response - invalid JSON or schema mismatch`

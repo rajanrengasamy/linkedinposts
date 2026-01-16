@@ -20,11 +20,14 @@
 
 import { z } from 'zod';
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
-import { getApiKey } from '../config.js';
+import { getApiKey, getOpenCodeModel } from '../config.js';
 import { withRetry, CRITICAL_RETRY_OPTIONS, TimeoutError } from '../utils/retry.js';
 import { logVerbose, logWarning } from '../utils/logger.js';
 import { STAGE_TIMEOUT_MS, type PipelineConfig } from '../types/index.js';
 import type { ValidatedItem } from '../schemas/validatedItem.js';
+import { routeLLMRequest } from '../llm/fallback-router.js';
+import { getGeminiCLIClient } from '../llm/gemini-cli-wrapper.js';
+import { getOpenCodeGoogleClient } from '../llm/opencode-wrapper.js';
 import {
   parseAndValidate,
   retryWithFixPrompt,
@@ -282,6 +285,108 @@ function createSanitizedError(operationName: string, originalError: unknown): Er
   }
 
   return safeError;
+}
+
+// ============================================
+// CLI Request Functions (Tier 1 & Tier 2)
+// ============================================
+
+/**
+ * Make Gemini scoring request via Gemini CLI (Gemini Ultra subscription)
+ * This is Tier 2 in the fallback chain.
+ */
+async function makeGeminiRequestViaCLI(
+  prompt: string,
+  options?: GeminiRequestOptions
+): Promise<string> {
+  const { timeoutMs = STAGE_TIMEOUT_MS, operationName = 'Gemini CLI scoring' } = options ?? {};
+
+  logVerbose(`${operationName}: Sending request via CLI (${prompt.length} chars)`);
+
+  const client = getGeminiCLIClient({
+    model: GEMINI_MODEL,
+    timeout: timeoutMs,
+  });
+
+  if (!client) {
+    throw new Error('Gemini CLI client not available');
+  }
+
+  const response = await client.models.generateContent({
+    model: GEMINI_MODEL,
+    contents: prompt,
+  });
+
+  const text = response.text;
+  if (!text || text.trim().length === 0) {
+    throw new Error('Empty response received from Gemini CLI');
+  }
+
+  logVerbose(`${operationName}: CLI response received (${text.length} chars)`);
+  return text;
+}
+
+/**
+ * Make Gemini scoring request via OpenCode CLI (subscription auth).
+ * This is Tier 1 in the fallback chain (highest priority).
+ */
+async function makeGeminiRequestViaOpenCode(
+  prompt: string,
+  options?: GeminiRequestOptions
+): Promise<string> {
+  const { timeoutMs = STAGE_TIMEOUT_MS, operationName = 'OpenCode Gemini scoring' } = options ?? {};
+
+  logVerbose(`${operationName}: Sending request via OpenCode (${prompt.length} chars)`);
+
+  const model = getOpenCodeModel('gemini');
+  const client = getOpenCodeGoogleClient({
+    model,
+    timeout: timeoutMs,
+  });
+
+  if (!client) {
+    throw new Error('OpenCode client not available');
+  }
+
+  const response = await client.models.generateContent({
+    model,
+    contents: prompt,
+  });
+
+  const text = response.text;
+  if (!text || text.trim().length === 0) {
+    throw new Error('Empty response received from OpenCode');
+  }
+
+  logVerbose(`${operationName}: OpenCode response received (${text.length} chars)`);
+  return text;
+}
+
+/**
+ * Make Gemini scoring request with fallback routing (OpenCode -> CLI -> API).
+ *
+ * Routes through the multi-tier authentication system:
+ * - Tier 1: OpenCode CLI (subscription auth via plugins)
+ * - Tier 2: Gemini CLI (Gemini Ultra subscription)
+ * - Tier 3: Direct API (per-token billing)
+ *
+ * @param prompt - The scoring prompt to send
+ * @param options - Optional request configuration
+ * @returns Promise resolving to the text response
+ */
+export async function makeGeminiRequestWithFallback(
+  prompt: string,
+  options?: GeminiRequestOptions
+): Promise<string> {
+  const result = await routeLLMRequest<string>(
+    () => makeGeminiRequest(prompt, options),              // Tier 3: API
+    () => makeGeminiRequestViaCLI(prompt, options),        // Tier 2: CLI
+    () => makeGeminiRequestViaOpenCode(prompt, options),   // Tier 1: OpenCode
+    { provider: 'gemini' }
+  );
+
+  logVerbose(`Gemini scoring completed via ${result.tier} tier`);
+  return result.result;
 }
 
 // ============================================
@@ -790,6 +895,7 @@ export function processScoredItems(
 
 /**
  * Attempt to fix a failed Gemini response using a retry prompt.
+ * Uses fallback routing for the fix request.
  *
  * @param originalResponse - The original response text that failed parsing
  * @param originalPrompt - The original scoring prompt for context
@@ -801,7 +907,7 @@ async function attemptFixWithRetry(
 ): Promise<ParseRetryResult<GeminiScoreResponse>> {
   return retryWithFixPrompt(
     async (fixPrompt: string) => {
-      return await makeGeminiRequest(fixPrompt, {
+      return await makeGeminiRequestWithFallback(fixPrompt, {
         operationName: 'Gemini scoring fix retry',
       });
     },
@@ -901,8 +1007,8 @@ export async function scoreItems(
       // 4a. Build prompt
       const prompt = buildScoringPrompt(batch, userPrompt);
 
-      // 4b. Call Gemini with retry
-      const responseText = await makeGeminiRequest(prompt, {
+      // 4b. Call Gemini with retry and fallback routing
+      const responseText = await makeGeminiRequestWithFallback(prompt, {
         operationName: `Gemini scoring batch ${batchNum}`,
       });
 
