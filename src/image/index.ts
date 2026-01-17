@@ -28,6 +28,33 @@ export { getImageCost } from './nanoBanana.js';
 export type { GeminiImageResponse } from '../types/image.js';
 
 // ============================================
+// CLI Types (for Nano Banana fallback system)
+// ============================================
+
+/**
+ * CLI-specific types and error classes for Nano Banana image generation.
+ */
+export {
+  // Error classes
+  NanoBananaError,
+  NanoBananaNotFoundError,
+  NanoBananaAuthError,
+  NanoBananaTimeoutError,
+  NanoBananaGenerationError,
+  // Constants
+  DEFAULT_NANO_BANANA_MODEL,
+  DEFAULT_CLI_TIMEOUT_MS,
+  NANO_BANANA_OUTPUT_DIR,
+} from './types.js';
+
+export type {
+  NanoBananaCliResponse,
+  ImageGenerationTier,
+  ImageRouterResult,
+  ImageRouterOptions,
+} from './types.js';
+
+// ============================================
 // Constants (re-exported from types/ as single source of truth)
 // ============================================
 
@@ -74,7 +101,25 @@ export { isValidImageSize } from './nanoBanana.js';
 export { getRecommendedImageSizes } from './nanoBanana.js';
 
 // ============================================
-// Internal Utilities (exported for testing)
+// Router (three-tier fallback system)
+// ============================================
+
+/**
+ * Route image generation through CLI -> API -> Manual fallback system.
+ */
+export { routeImageGeneration, shouldUseNanoBananaCLI, logImageRouterStatus, shouldFallbackFromCLI } from './nanoBananaRouter.js';
+
+// ============================================
+// CLI Wrapper
+// ============================================
+
+/**
+ * CLI wrapper for Nano Banana image generation.
+ */
+export { NanoBananaCLIWrapper, getNanoBananaCLIClient, isNanoBananaCliAvailable } from './nanoBananaCli.js';
+
+// ============================================
+// Internal Utilities (exported for testing and router)
 // ============================================
 
 /**
@@ -82,6 +127,20 @@ export { getRecommendedImageSizes } from './nanoBanana.js';
  * Exported for unit testing prompt generation logic.
  */
 export { buildInfographicPrompt } from './nanoBanana.js';
+
+/**
+ * Generate infographic via direct API call (Tier 2).
+ * Used by nanoBananaRouter.ts for the API fallback tier.
+ * @internal
+ */
+export { generateInfographicViaAPI } from './nanoBanana.js';
+
+/**
+ * Check if an error is retryable with the fallback model.
+ * Used by nanoBananaRouter.ts to determine fallback behavior.
+ * @internal
+ */
+export { isRetryableForFallback } from './nanoBanana.js';
 
 /**
  * Parse Gemini API response to extract image buffer.

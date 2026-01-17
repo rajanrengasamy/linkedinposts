@@ -8,10 +8,20 @@
  * - Style-specific instruction templates
  * - Input sanitization for prompt security
  * - Content truncation to prevent excessive prompt length
- * - API client for image generation
+ * - API client for image generation (Tier 2)
  * - Non-blocking failure handling (pipeline continues without image)
  *
+ * Three-tier fallback architecture:
+ * 1. CLI (Nano Banana) - subscription-based billing via gemini CLI
+ * 2. API (Gemini) - per-token billing via @google/genai SDK
+ * 3. Manual - logs instructions for user to generate manually
+ *
+ * The main entry point `generateInfographic()` delegates to `nanoBananaRouter.ts`
+ * which orchestrates the fallback. The `generateInfographicViaAPI()` function
+ * contains the direct API implementation used by Tier 2.
+ *
  * @see docs/PRD-v2.md Section 11 for full requirements
+ * @see docs/plan-cli-image-fallback-system.md for architecture details
  */
 
 import { GoogleGenAI } from '@google/genai';
@@ -23,6 +33,7 @@ import { logVerbose, logWarning, logSuccess, sanitize } from '../utils/logger.js
 import { withRetryAndTimeout } from '../utils/retry.js';
 import { getApiKey } from '../config.js';
 import { IMAGE_COSTS } from '../utils/cost.js';
+import { routeImageGeneration } from './nanoBananaRouter.js';
 
 // ============================================
 // Constants
@@ -755,12 +766,10 @@ export async function makeImageRequest(
 /**
  * Generate an infographic image from a brief.
  *
- * This is the main entry point for image generation. It orchestrates:
- * 1. Check if image generation is skipped (config.skipImage)
- * 2. Map resolution to API format ('2k' -> '2K', '4k' -> '4K')
- * 3. Build the image prompt from the brief
- * 4. Make the API request to Gemini with retry logic
- * 5. Parse the response to extract image buffer
+ * This function uses a three-tier fallback system:
+ * 1. CLI (Nano Banana) - subscription-based billing
+ * 2. API (Gemini) - per-token billing
+ * 3. Manual - logs instructions for user
  *
  * This function is NON-BLOCKING: failures are logged as warnings but do not
  * halt the pipeline. Per PRD: "Failure: Log warning, continue without image"
@@ -790,7 +799,42 @@ export async function generateInfographic(
   }
 
   try {
-    // 2. Map resolution string ('2k' | '4k') to API format ('2K' | '4K')
+    // 2. Use the router for three-tier fallback
+    const result = await routeImageGeneration(brief, config);
+
+    // 3. Log which tier succeeded
+    if (result.buffer) {
+      const sizeKB = Math.round(result.buffer.length / 1024);
+      logSuccess(`Infographic generated via ${result.tier} (${sizeKB} KB)`);
+      logVerbose(`Tiers attempted: ${result.tiersAttempted.join(' → ')}`);
+    } else {
+      logWarning('Image generation failed (all tiers exhausted)');
+    }
+
+    return result.buffer;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logWarning(`Image generation failed: ${sanitize(errorMessage)}`);
+    return null;
+  }
+}
+
+/**
+ * Generate infographic via direct API call (Tier 2).
+ * This is the existing implementation, now internal to the router.
+ *
+ * @internal Used by nanoBananaRouter.ts
+ *
+ * @param brief - The infographic brief from synthesis
+ * @param config - Pipeline configuration (for resolution)
+ * @returns Buffer containing PNG image data, or null if failed
+ */
+export async function generateInfographicViaAPI(
+  brief: InfographicBrief,
+  config: PipelineConfig
+): Promise<Buffer | null> {
+  try {
+    // 1. Map resolution string ('2k' | '4k') to API format ('2K' | '4K')
     // Uses RESOLUTION_TO_IMAGE_SIZE from types/index.js as single source of truth
     const resolution = RESOLUTION_TO_IMAGE_SIZE[config.imageResolution] ?? '2K';
 
@@ -798,13 +842,13 @@ export async function generateInfographic(
     // This is more intuitive and matches the imageConfig.imageSize format
     const resolutionLabel = config.imageResolution; // '2k' or '4k'
 
-    logVerbose(`Generating ${resolution} infographic: "${brief.title}"`);
+    logVerbose(`Generating ${resolution} infographic via API: "${brief.title}"`);
 
-    // 3. Build the prompt with resolution label
+    // 2. Build the prompt with resolution label
     const prompt = buildInfographicPrompt(brief, resolutionLabel);
     logVerbose(`Image prompt length: ${prompt.length} characters`);
 
-    // 4. Attempt image generation with primary model (with retry and timeout)
+    // 3. Attempt image generation with primary model (with retry and timeout)
     // Uses STAGE_TIMEOUT_MS (60s) per attempt to prevent indefinite hangs
     const primaryResult = await withRetryAndTimeout(
       async () => {
@@ -825,15 +869,15 @@ export async function generateInfographic(
       }
     );
 
-    // 5. Handle primary result
+    // 4. Handle primary result
     if (primaryResult.success) {
       // Log success with image size (KB), resolution, and model
       const sizeKB = Math.round(primaryResult.data.length / 1024);
-      logSuccess(`Infographic generated (${sizeKB} KB, ${resolution}, primary model)`);
+      logVerbose(`API infographic generated (${sizeKB} KB, ${resolution}, primary model)`);
       return primaryResult.data;
     }
 
-    // 6. Try fallback model if primary failed with retryable error (CODEX-MED-1)
+    // 5. Try fallback model if primary failed with retryable error (CODEX-MED-1)
     if (isRetryableForFallback(primaryResult.error)) {
       logWarning(`Primary model failed, trying fallback: ${IMAGE_MODEL_FALLBACK}`);
 
@@ -858,7 +902,7 @@ export async function generateInfographic(
 
       if (fallbackResult.success) {
         const sizeKB = Math.round(fallbackResult.data.length / 1024);
-        logSuccess(`Infographic generated (${sizeKB} KB, ${resolution}, fallback model)`);
+        logVerbose(`API infographic generated (${sizeKB} KB, ${resolution}, fallback model)`);
         return fallbackResult.data;
       }
 
@@ -868,13 +912,13 @@ export async function generateInfographic(
     }
 
     // Primary failed with non-retryable error (e.g., 400 bad request)
-    logWarning(`Image generation failed: ${sanitize(primaryResult.error.message)}`);
+    logWarning(`API image generation failed: ${sanitize(primaryResult.error.message)}`);
     return null;
 
   } catch (error) {
-    // Catch any unexpected errors - still non-blocking per PRD
+    // Catch any unexpected errors
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logWarning(`Image generation failed: ${sanitize(errorMessage)}`);
+    logWarning(`API image generation failed: ${sanitize(errorMessage)}`);
     return null;
   }
 }
@@ -941,6 +985,9 @@ export {
   // Error handling utilities (exported for testing)
   extractStatusCode,
   getStatusCodeMessage,
+  // Internal: used by nanoBananaRouter.ts for fallback detection
+  isRetryableForFallback,
 };
 
 // Note: BRAND_TEMPLATE and ACCENT_PALETTE are exported inline with their declarations
+// Note: generateInfographicViaAPI is exported inline with its declaration (used by router)
