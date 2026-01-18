@@ -61,6 +61,7 @@ export function createProgram(): Command {
     .option('--output-dir <path>', 'Output directory', './output')
     .option('--save-raw', 'Save raw API responses')
     .option('--image-resolution <res>', 'Image resolution: 2k|4k', '2k')
+    .option('--image-mode <mode>', 'Image mode: export (default, for manual Gemini) or api', 'export')
 
     // Model Selection
     .option('--scoring-model <model>', 'Scoring model: gemini|kimi2', 'gemini')
@@ -163,6 +164,7 @@ interface CommanderOptions {
   outputDir?: string;
   saveRaw?: boolean;
   imageResolution?: string;
+  imageMode?: string;
   scoringModel?: string;
   synthesisModel?: string;
   skipRefinement?: boolean;
@@ -218,6 +220,7 @@ function isValidCommanderOptions(opts: Record<string, unknown>): boolean {
     stringOrUndef(opts.outputDir) &&
     boolOrUndef(opts.saveRaw) &&
     stringOrUndef(opts.imageResolution) &&
+    stringOrUndef(opts.imageMode) &&
     stringOrUndef(opts.scoringModel) &&
     stringOrUndef(opts.synthesisModel) &&
     boolOrUndef(opts.skipRefinement) &&
@@ -284,6 +287,7 @@ export function parseCliOptions(
     outputDir: commanderOpts.outputDir,
     saveRaw: commanderOpts.saveRaw,
     imageResolution: commanderOpts.imageResolution,
+    imageMode: commanderOpts.imageMode,
     scoringModel: commanderOpts.scoringModel,
     synthesisModel: commanderOpts.synthesisModel,
     skipRefinement: commanderOpts.skipRefinement,

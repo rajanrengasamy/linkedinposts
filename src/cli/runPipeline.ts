@@ -33,7 +33,12 @@ import { collectAll } from '../collectors/index.js';
 import { validateItems } from '../validation/perplexity.js';
 import { score } from '../scoring/index.js';
 import { extractGroundedClaims, synthesize, buildSourceReferences } from '../synthesis/index.js';
-import { generateInfographic, generateMultipleInfographics } from '../image/index.js';
+import {
+  generateInfographic,
+  generateMultipleInfographics,
+  exportPromptAssets,
+  exportMultiplePromptAssets,
+} from '../image/index.js';
 
 // Utility imports
 import { createOutputWriter, createOutputWriterFromDir, type OutputWriter } from '../utils/fileWriter.js';
@@ -283,28 +288,55 @@ export async function runPipeline(
   // Stage 5: Image Generation (optional, non-blocking)
   if (!config.skipImage) {
     state.currentStage = 'image';
-    logStage('Image Generation');
 
-    if (synthesis.posts && synthesis.posts.length > 1) {
-      // Multi-post: generate multiple infographics
-      const imageResults = await generateMultipleInfographics(synthesis.posts, config);
-      await state.outputWriter.writeInfographics(imageResults);
+    if (config.imageMode === 'export') {
+      // Export mode: generate prompts for manual Gemini image generation
+      logStage('Image Prompt Export');
 
-      const successCount = imageResults.filter((r) => r !== null).length;
-      if (successCount > 0) {
-        logSuccess(`Generated ${successCount}/${synthesis.posts.length} infographics`);
+      if (synthesis.posts && synthesis.posts.length > 1) {
+        // Multi-post: export prompts for each post
+        const exportResult = await exportMultiplePromptAssets(
+          synthesis.posts,
+          currentPrompt,
+          config,
+          state.outputWriter.outputDir
+        );
+        logSuccess(`Exported ${exportResult.promptCount} image prompts to ${exportResult.outputDir}`);
       } else {
-        logWarning('All infographic generations failed');
+        // Single post: export prompt assets
+        const exportResult = await exportPromptAssets(
+          synthesis.infographicBrief,
+          currentPrompt,
+          config,
+          state.outputWriter.outputDir
+        );
+        logSuccess(`Exported image prompt assets to ${exportResult.outputDir}`);
       }
     } else {
-      // Single post: backward compatible
-      const image = await generateInfographic(synthesis.infographicBrief, config);
+      // API mode: generate images via API/CLI
+      logStage('Image Generation');
 
-      if (image) {
-        await state.outputWriter.writeInfographic(image);
-        logSuccess(`Generated infographic (${image.length} bytes)`);
+      if (synthesis.posts && synthesis.posts.length > 1) {
+        // Multi-post: generate multiple infographics
+        const imageResults = await generateMultipleInfographics(synthesis.posts, config);
+        await state.outputWriter.writeInfographics(imageResults);
+
+        const successCount = imageResults.filter((r) => r !== null).length;
+        if (successCount > 0) {
+          logSuccess(`Generated ${successCount}/${synthesis.posts.length} infographics`);
+        } else {
+          logWarning('All infographic generations failed');
+        }
       } else {
-        logWarning('Image generation returned null');
+        // Single post: backward compatible
+        const image = await generateInfographic(synthesis.infographicBrief, config);
+
+        if (image) {
+          await state.outputWriter.writeInfographic(image);
+          logSuccess(`Generated infographic (${image.length} bytes)`);
+        } else {
+          logWarning('Image generation returned null');
+        }
       }
     }
   }

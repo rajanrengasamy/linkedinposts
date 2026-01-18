@@ -105,6 +105,12 @@ export {
 // Import SynthesisModel for use in PipelineConfig interface
 import type { SynthesisModel } from '../synthesis/types.js';
 
+// Import ImageGenerationMode for PipelineConfig
+import type { ImageGenerationMode } from '../image/types.js';
+
+// Re-export ImageGenerationMode for external use
+export type { ImageGenerationMode } from '../image/types.js';
+
 // ============================================
 // Pipeline Configuration
 // ============================================
@@ -178,6 +184,9 @@ export interface PipelineConfig {
   /** Skip infographic generation */
   skipImage: boolean;
 
+  /** Image generation mode: 'export' for manual Gemini, 'api' for API calls */
+  imageMode: ImageGenerationMode;
+
   /** Quality profile (affects limits and stages) */
   qualityProfile: QualityProfile;
 
@@ -241,6 +250,7 @@ export const DEFAULT_CONFIG: PipelineConfig = {
   skipValidation: false,
   skipScoring: false,
   skipImage: false,
+  imageMode: 'export',
   qualityProfile: 'default',
   maxPerSource: 25,
   maxTotal: 75,

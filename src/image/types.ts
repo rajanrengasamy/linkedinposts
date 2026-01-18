@@ -244,3 +244,57 @@ export interface ImageRouterOptions {
   /** Timeout for CLI operations in milliseconds (default: DEFAULT_CLI_TIMEOUT_MS) */
   timeout?: number;
 }
+
+// ============================================
+// Prompt Export Types
+// ============================================
+
+/**
+ * Image generation mode
+ * - 'api': Generate via Gemini API (existing behavior)
+ * - 'export': Export prompts for manual generation (default)
+ */
+export type ImageGenerationMode = 'api' | 'export';
+
+/**
+ * Prompt export metadata for a single infographic.
+ *
+ * Contains information about a generated prompt file,
+ * including the infographic brief details.
+ */
+export interface PromptExportMetadata {
+  /** Post number (1, 2, or 3) */
+  postNumber: number;
+  /** Relative file path within image-assets directory */
+  file: string;
+  /** Character count of the prompt */
+  charCount: number;
+  /** Infographic brief summary */
+  infographicBrief: {
+    title: string;
+    keyPoints: string[];
+    suggestedStyle: string;
+    accentColor?: string;
+  };
+}
+
+/**
+ * Result from prompt export operation.
+ *
+ * Contains paths to all generated files and metadata
+ * about the export operation.
+ */
+export interface PromptExportResult {
+  /** Directory where assets were written */
+  outputDir: string;
+  /** Number of prompts generated */
+  promptCount: number;
+  /** Paths to generated files */
+  files: {
+    brandingBookMd: string;
+    brandingBookJson: string;
+    metadataJson: string;
+    readmeMd: string;
+    prompts: string[];
+  };
+}

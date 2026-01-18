@@ -52,7 +52,33 @@ export type {
   ImageGenerationTier,
   ImageRouterResult,
   ImageRouterOptions,
+  // Prompt Export types
+  ImageGenerationMode,
+  PromptExportMetadata,
+  PromptExportResult,
 } from './types.js';
+
+// ============================================
+// Prompt Export (Stage 6 Manual Generation)
+// ============================================
+
+/**
+ * Export prompts and branding assets for manual image generation.
+ * Use this instead of API generation to avoid costs.
+ */
+export { exportPromptAssets, exportMultiplePromptAssets } from './promptExport.js';
+
+/**
+ * Branding book generator for creating brand documentation.
+ */
+export {
+  generateBrandingBookData,
+  renderBrandingBookMarkdown,
+  inferAccentColor,
+  BRANDING_BOOK_SCHEMA_VERSION,
+} from './brandingBook.js';
+
+export type { BrandingBookData } from './brandingBook.js';
 
 // ============================================
 // Constants (re-exported from types/ as single source of truth)

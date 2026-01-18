@@ -6,7 +6,7 @@
  */
 
 import 'dotenv/config';
-import type { PipelineConfig, SourceOption, QualityProfile, ScoringModel } from './types/index.js';
+import type { PipelineConfig, SourceOption, QualityProfile, ScoringModel, ImageGenerationMode } from './types/index.js';
 import type { RefinementModel, RefinementConfig } from './refinement/types.js';
 import type { SynthesisModel } from './synthesis/types.js';
 import { SYNTHESIS_MODELS } from './synthesis/types.js';
@@ -287,6 +287,7 @@ export interface CliOptions {
   outputDir?: string;
   saveRaw?: boolean;
   imageResolution?: string;
+  imageMode?: string;
   scoringModel?: string;
   synthesisModel?: string;
   skipRefinement?: boolean;
@@ -360,6 +361,21 @@ function parseImageResolution(resStr: string): '2k' | '4k' {
     return '2k';
   }
   return normalized as '2k' | '4k';
+}
+
+/**
+ * Parse image generation mode string.
+ * Warns about invalid values and defaults to 'export'.
+ */
+function parseImageMode(modeStr: string): ImageGenerationMode {
+  const normalized = modeStr.toLowerCase();
+  if (normalized !== 'api' && normalized !== 'export') {
+    logWarning(
+      `Invalid image mode '${modeStr}' ignored. Using 'export'. Valid options: api, export`
+    );
+    return 'export';
+  }
+  return normalized as ImageGenerationMode;
 }
 
 /**
@@ -488,6 +504,10 @@ export function buildConfig(options: CliOptions): PipelineConfig {
 
   if (options.imageResolution !== undefined) {
     config.imageResolution = parseImageResolution(options.imageResolution);
+  }
+
+  if (options.imageMode !== undefined) {
+    config.imageMode = parseImageMode(options.imageMode);
   }
 
   if (options.scoringModel !== undefined) {
