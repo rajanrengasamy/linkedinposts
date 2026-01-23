@@ -31,7 +31,7 @@ cp .env.example .env
 # Run
 npm run dev -- "AI trends in healthcare 2025"
 
-# Output in: output/{timestamp}/linkedin_post.md
+# Output in: output/session_{timestamp}/linkedin_post.md
 ```
 
 ## Architecture
@@ -119,7 +119,7 @@ npm run dev -- "Topic" --synthesis-model claude
 Each run creates a timestamped folder:
 
 ```
-output/2026-01-13-14-35-12/
+output/session_20260113T143512/
 ├── linkedin_post.md      # Ready-to-post content
 ├── sources.json          # Machine-readable provenance
 ├── sources.md            # Human-readable source list

@@ -289,7 +289,7 @@ For each user prompt, the system derives 3-5 sub-queries:
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           FINAL OUTPUT                                       │
 │                                                                              │
-│  📁 output/{timestamp}/                                                      │
+│  📁 output/session_{timestamp}/                                              │
 │  ├── raw_data.json          # Only if --save-raw (RawItem[])                │
 │  ├── validated_data.json    # ValidatedItem[]                               │
 │  ├── scored_data.json       # ScoredItem[]                                  │
@@ -748,7 +748,7 @@ The tool supports generating multiple LinkedIn posts from a single pipeline run,
 When `--post-count` > 1:
 
 ```
-output/{timestamp}/
+output/session_{timestamp}/
 ├── synthesis.json              # Contains all posts
 ├── linkedin_post_1.md          # Individual post files
 ├── linkedin_post_2.md
@@ -889,7 +889,7 @@ Accept this refined prompt? [Y/n/feedback]:
 ### Directory Structure
 
 ```
-output/{timestamp}/
+output/session_{timestamp}/
 ├── raw_data.json          # RawItem[] (only with --save-raw)
 ├── validated_data.json    # ValidatedItem[]
 ├── scored_data.json       # ScoredItem[]

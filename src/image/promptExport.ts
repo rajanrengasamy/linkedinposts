@@ -199,7 +199,7 @@ function generateMetadata(
  * @param brief - Single infographic brief from synthesis
  * @param topic - The original topic/prompt
  * @param config - Pipeline configuration
- * @param outputDir - Base output directory (e.g., output/2025-12-30_14-43-11)
+ * @param outputDir - Base output directory (e.g., output/session_20251230T144311)
  * @returns Export result with file paths
  */
 export async function exportPromptAssets(

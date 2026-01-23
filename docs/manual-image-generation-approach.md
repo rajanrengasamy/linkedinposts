@@ -67,7 +67,7 @@ This approach trades automation for cost savings, making it ideal for:
 ### Output Structure
 
 ```
-output/2025-12-30_14-43-11/
+output/session_20251230T144311/
 ├── linkedin_post.md              # Generated post content
 ├── synthesis.json                # Full synthesis output
 ├── sources.json                  # Source provenance

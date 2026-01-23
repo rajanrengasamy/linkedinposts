@@ -69,18 +69,10 @@ export function validateOutputDir(userPath: string): string {
 
 /**
  * Generate a timestamped directory name
- * Format: YYYY-MM-DD_HH-MM-SS
+ * Format: YYYYMMDDTHHMMSS (UTC)
  */
 function generateTimestamp(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const hours = String(now.getHours()).padStart(2, '0');
-  const minutes = String(now.getMinutes()).padStart(2, '0');
-  const seconds = String(now.getSeconds()).padStart(2, '0');
-
-  return `${year}-${month}-${day}_${hours}-${minutes}-${seconds}`;
+  return new Date().toISOString().replace(/[-:]/g, '').split('.')[0];
 }
 
 /**
@@ -98,7 +90,7 @@ export async function ensureOutputDir(basePath: string): Promise<string> {
   validateOutputDir(basePath);
 
   const timestamp = generateTimestamp();
-  const outputDir = join(basePath, timestamp);
+  const outputDir = join(basePath, `session_${timestamp}`);
 
   await mkdir(outputDir, { recursive: true });
   logVerbose(`Created output directory: ${outputDir}`);

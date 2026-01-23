@@ -130,7 +130,7 @@ Examples:
   $ npx tsx src/index.ts "AI trends" --synthesis-model claude
 
   # Resume from previous run's scored data
-  $ npx tsx src/index.ts "AI trends" --from-scored output/2025-12-30/scored_data.json
+  $ npx tsx src/index.ts "AI trends" --from-scored output/session_20251230T120000/scored_data.json
 
 Notes:
   - Web-only mode is recommended for commercial/shared use

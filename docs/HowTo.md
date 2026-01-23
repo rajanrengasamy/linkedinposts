@@ -343,12 +343,12 @@ If a pipeline run fails after scoring (e.g., during synthesis due to timeout), y
 
 ### Basic Resume
 ```bash
-npx tsx src/index.ts "AI trends" --from-scored output/2025-12-30_23-47-46/scored_data.json
+npx tsx src/index.ts "AI trends" --from-scored output/session_20251230T234746/scored_data.json
 ```
 
 ### Resume with Multi-Post
 ```bash
-npx tsx src/index.ts "AI trends" --from-scored output/2025-12-30_23-47-46/scored_data.json --post-count 3 --post-style series
+npx tsx src/index.ts "AI trends" --from-scored output/session_20251230T234746/scored_data.json --post-count 3 --post-style series
 ```
 
 ### What Gets Skipped
@@ -509,7 +509,7 @@ npx tsx src/index.ts "AI trends" --refinement-model claude --verbose
 ### 13. Resume from Failed Run
 If synthesis failed (e.g., timeout), resume from scored data.
 ```bash
-npx tsx src/index.ts "AI trends" --from-scored output/2025-12-30_23-47-46/scored_data.json --post-count 3 --post-style series --verbose
+npx tsx src/index.ts "AI trends" --from-scored output/session_20251230T234746/scored_data.json --post-count 3 --post-style series --verbose
 ```
 
 ---
@@ -568,7 +568,7 @@ OPENROUTER_API_KEY=your_key
 
 ## Output Files
 
-After a successful run, find outputs in `output/{timestamp}/`:
+After a successful run, find outputs in `output/session_{timestamp}/`:
 
 | File | Description |
 |------|-------------|
